@@ -6,7 +6,7 @@
 Read this before opening a PR or filing an issue: most of what is already
 known-broken is below, and half of it already has a fix in flight.
 
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-27
 
 ---
 
@@ -17,10 +17,14 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**770 deterministic evals pass offline**, with no API key; 60 more are live
-evals that skip without one. CI runs the offline tier on every PR along with
+**924 checks pass in the isolated offline suite**, with no API key; 63 checks
+skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
+
+**V0 context/memory baseline is available.** Thirty-six synthetic scenarios cover
+1,632 turns with call timings, state checks and reproducibility metadata. Real
+model quality and cost remain unmeasured. See [the V0 report](v0-baseline.md).
 
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.
@@ -52,9 +56,8 @@ Not a framework, not multi-agent, not production — see
 
 Additionally, and worth stating because people ask:
 
-- **No Windows CI.** The Windows bugs so far (#140, #141, both fixed) were
-  found by contributors, not by us. Every Windows claim in this repo is
-  untested.
+- **No Windows CI.** V0 has a local Windows/Python 3.13 offline verification;
+  hosted services, native macOS tools and live model quality remain unverified there.
 - **The judge evals are not in CI.** `make gate` explicitly enables paid judge
   evaluation and requires complete live coverage. Missing credentials or skipped
   live checks leave quality incomplete. CI runs isolated offline checks.

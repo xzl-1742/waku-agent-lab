@@ -5,6 +5,7 @@ V2 completes the first usable compaction milestone. V5 completes the combined co
 These labels identify development milestones; they do not change the package version.
 
 The proposal was approved for V0 implementation on 2026-09-27. Performance targets have not been measured.
+V0 implementation and offline verification are complete; [the baseline report](v0-baseline.md) records the results and unmeasured live quality.
 V1 through V5 remain planned work, subject to the architecture review described in [conventions section 2](context/conventions.md#2-how-much-process-a-change-needs).
 
 ## 1. Outcomes and current evidence
@@ -92,7 +93,7 @@ V0 produces a working baseline and the evaluation contract for all later version
 
 ### Changes
 
-1. Restore `Session.build_system()` from the repository's original staged contents without reverting unrelated changes.
+1. Restore `Session.build_system()` from the repository's original baseline contents without reverting unrelated changes.
 2. Validate history-window settings. Define zero as no prior exchanges and reject negative values, with deterministic regression cases.
 3. Run the relevant existing offline tests and record pre-existing failures separately from new failures.
 4. Establish isolated test setup before importing configuration: disable dotenv discovery, block network calls in offline tests, and direct all writes to a temporary home.

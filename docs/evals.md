@@ -84,7 +84,7 @@ deterministic case so it can never come back. A real example from this repo:
 the agent didn't know the current *time* and asked for it before scheduling
 "in 30 minutes". The fix is in [`session.py`](../waku/runtime/session.py), and
 [`test_working_memory.py`](../evals/deterministic/test_working_memory.py) locks
-it in. Run `make gate` → green → the eval history records the run.
+it in. The gate records each run in its output directory.
 
 ## Spend is permanent
 
