@@ -13,6 +13,9 @@ def _has_key() -> bool:
     """True when the ACTIVE provider (WAKU_PROVIDER) has its key set, so live
     evals run on whatever the user actually configured (anthropic, openrouter,
     gemini, ...), not only on ANTHROPIC_API_KEY."""
+    if os.environ.get("WAKU_RUN_LIVE_EVALS") != "1":
+        return False
+
     from waku.config import load_settings
     from waku.loop.models import PROVIDERS
 

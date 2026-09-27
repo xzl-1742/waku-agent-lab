@@ -41,10 +41,10 @@ trace:          ## deep trace waterfalls (Phoenix) at http://localhost:6006
 	$(PY) -m phoenix.server.main serve
 
 eval:           ## deterministic evals (0/1, no judge involved)
-	$(PY) -m pytest -q evals/deterministic
+	$(PY) -m evals.offline
 
 eval-judge:     ## LLM-as-judge evals (scored %, needs an API key)
-	$(PY) -m pytest -q evals/judge
+	WAKU_RUN_LIVE_EVALS=1 $(PY) -m pytest -q evals/judge
 
 gate:           ## the release gate: deterministic must pass, judge must clear threshold
 	$(PY) -m waku.ops.release_gate

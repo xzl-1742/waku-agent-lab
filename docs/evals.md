@@ -21,6 +21,16 @@ Deterministic tests are plain pytest in
 [`evals/judge/`](../evals/judge). CI runs the deterministic tier on every PR.
 The judge tier needs an API key, so `make gate` runs it locally.
 
+`python -m evals.offline` runs the deterministic suite in a fresh Python process.
+The launcher clears application settings and credentials, redirects the home to a
+temporary directory, and installs guards before importing Waku or pytest plugins.
+Python children inherit the guards. External DNS, TCP and UDP calls fail;
+loopback fixture servers remain available. Native subprocesses must be mocked
+by their tests because the Python guard is not an operating-system sandbox.
+Dotenv discovery stays disabled except in the test of a synthetic scratch file.
+Direct pytest runs also install guards before collecting test modules.
+Live tests require `WAKU_RUN_LIVE_EVALS=1`; the offline launcher clears this flag.
+
 **Where the results show:** the terminal, and the dashboard's **Ops** tab — the
 release-gate verdict, an **eval-history** table (one row per `make gate`), the
 per-turn gate decisions, and the raw traces inline.

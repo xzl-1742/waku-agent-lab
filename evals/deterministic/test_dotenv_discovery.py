@@ -62,6 +62,7 @@ def test_a_subdirectory_still_finds_the_project_env(tmp_path):
     import os
 
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+    env["WAKU_EVAL_ALLOW_DOTENV"] = "1"  # only this synthetic scratch file
     out = subprocess.run(
         [sys.executable, "-c", textwrap.dedent("""
             from dotenv import find_dotenv, load_dotenv

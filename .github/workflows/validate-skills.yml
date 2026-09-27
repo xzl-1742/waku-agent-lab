@@ -48,4 +48,4 @@ jobs:
       - name: .env.example matches the integrations registry
         run: python scripts/generate_env_example.py --check
       - name: Deterministic evals (offline tier — no API key in CI)
-        run: python -m pytest -q evals/deterministic
+        run: python -m evals.offline
