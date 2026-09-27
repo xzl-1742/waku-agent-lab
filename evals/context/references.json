@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "accessed_on": "2026-09-25",
+  "pi": {
+    "repository": "https://github.com/earendil-works/pi",
+    "commit": "ff72faba28d10c86611863d0aaa5d3122f2d8cb0",
+    "pin_method": "git ls-remote HEAD",
+    "documentation": "https://github.com/earendil-works/pi/blob/ff72faba28d10c86611863d0aaa5d3122f2d8cb0/packages/coding-agent/docs/compaction.md",
+    "snapshot_kind": "design notes; source checkout not vendored",
+    "notes": [
+      "Retain recent messages with a persisted summary and an explicit retained boundary.",
+      "Choose compaction boundaries that preserve the structure of tool exchanges."
+    ]
+  },
+  "claude_code": {
+    "snapshot_kind": "paraphrased public documentation; private implementation is unavailable",
+    "sources": [
+      "https://code.claude.com/docs/en/how-claude-code-works",
+      "https://code.claude.com/docs/en/memory"
+    ],
+    "notes": [
+      "Context management first reduces older tool results, then summarizes conversation when needed.",
+      "Persistent rules reload after compaction; memory uses an index with details loaded when relevant."
+    ]
+  }
+}

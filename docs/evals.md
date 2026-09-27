@@ -43,6 +43,36 @@ Reports go to `eval-results/eval_report.json` and `eval_runs.jsonl` by default.
 Pass `--output .waku` (or your configured agent home) to show the report in the
 dashboard's **Ops** tab. Reports retain the legacy dashboard fields.
 
+## Context and memory baseline (V0)
+
+`python -m evals.context.runner --split all --output eval-results/context-v0.json`
+runs 36 synthetic multi-turn scenarios through the production session, tool loop
+and SQLite stores. The launcher installs offline guards before importing Waku.
+Each scenario gets a fresh home, a fixed UTC prompt clock and configuration A.
+The default split runs 24 development cases; `--split reserved` selects the 12
+frozen cases. Six families each contribute four development and two reserved cases.
+
+The fixture bank varies 8, 32 and 96 user turns, evidence position, 1/16/64 KiB
+tool results, corrections, deletion, Chinese pronouns and restart/session switches.
+Outcome checks inspect stored facts, transcript rows and action receipts. Input
+probes expose omitted constraints and stale facts still present in history.
+These probes describe model input availability; scripted answers do not establish
+task success, retrieval-gate quality or a guarantee against repeated external actions.
+Consolidation runs on its normal schedule with empty scripted extraction results.
+
+The JSON report records fixture and expanded-turn hashes, prompt templates,
+model labels, explicit settings, trial, Python/platform details and a source manifest.
+The manifest hashes allowlisted code and bundled skills even without a Git commit.
+Each client/tool call measures its actual execution boundary with a monotonic clock.
+Client-call counts exclude hidden SDK retries. Missing and synthetic token usage
+and costs remain `null`; real-model quality remains `incomplete`.
+Configuration B, C and D are unavailable until their implementation milestones.
+The V0 runner supports scripted execution only; paid scenario comparisons remain
+separate work. The existing live judge suite is enabled only by an explicit command.
+
+The reference snapshot pins Pi to a commit and stores short paraphrases of the
+official Claude Code documentation in `evals/context/references.json`.
+
 ## Catching bugs
 
 The history regressions cover zero and negative `WAKU_HISTORY_TURNS` values.

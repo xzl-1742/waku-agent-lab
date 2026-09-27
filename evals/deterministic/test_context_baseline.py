@@ -1,0 +1,122 @@
+"""The offline baseline proves state transitions; simulated answers are not quality scores."""
+
+import hashlib
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from evals.context.fixtures import FIXTURES, expand, load_cases
+from evals.context.measurement import RecordingClient, record_tools, source_snapshot
+from evals.context.runner import run_case
+from evals.helpers import response, text_block
+
+CASES = load_cases()
+
+
+def test_fixture_bank_is_frozen_before_candidate_tuning():
+    # Changing this hash requires an explicitly versioned dataset revision.
+    assert hashlib.sha256(FIXTURES.read_text(encoding="utf-8").encode()).hexdigest() == (
+        "bab4c5fd9911bf3692681a1bd4725cade9c14018059a53910dd5427d03ceea1f"
+    )
+
+
+@pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
+def test_scripted_scenario_persists_expected_outcomes(case, tmp_path):
+    report = run_case(case, tmp_path / "home")
+    assert report["status"] == "complete", report
+    assert report["quality_status"] == "incomplete"
+    assert report["task_success"] is None
+    assert report["input_tokens"] is None
+    assert report["cost_usd"] is None
+    assert report["calls_by_stage"]["gate"] == case["turns"]
+    assert report["calls_by_stage"]["consolidation"] == case["turns"] // 6
+    assert len(report["turn_seconds"]) == case["turns"]
+    assert len([s for s in expand(case) if s["op"] == "turn"]) == case["turns"]
+
+
+def test_long_context_probe_detects_missing_constraint(tmp_path):
+    case = next(c for c in CASES if c["id"] == "constraint-02")
+    result = run_case(case, tmp_path / "home")
+    assert result["status"] == "complete"
+    assert not result["evidence_probes"]["current_fact_in_final_input"]
+
+
+def test_unknown_fixture_schema_and_family_fail_loudly(tmp_path):
+    data = json.loads(FIXTURES.read_text(encoding="utf-8"))
+    path = tmp_path / "cases.json"
+    data["schema_version"] = 99
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="schema"):
+        load_cases(path)
+    data["schema_version"] = 1
+    data["cases"][0]["family"] = "typo"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="family"):
+        load_cases(path)
+
+
+def test_call_timing_wraps_execution_and_preserves_missing_usage():
+    now = [10.0]
+
+    def create(**kwargs):
+        now[0] += 2.75
+        return SimpleNamespace(content=[], usage=SimpleNamespace(input_tokens=12))
+
+    client = RecordingClient(SimpleNamespace(messages=SimpleNamespace(create=create)),
+                             clock=lambda: now[0])
+    client.messages.create(system="test", messages=[])
+    call = client.calls[0]
+    assert call["duration_seconds"] == 2.75
+    assert call["input_tokens"] == 12
+    assert call["output_tokens"] is None
+    assert call["usage_source"] == "unmeasured"
+
+
+def test_failed_calls_are_still_counted_and_timed():
+    times = iter([1.0, 3.0])
+
+    def fail(**kwargs):
+        raise RuntimeError("synthetic failure")
+
+    client = RecordingClient(SimpleNamespace(messages=SimpleNamespace(create=fail)),
+                             clock=lambda: next(times))
+    with pytest.raises(RuntimeError):
+        client.messages.create(system="test", messages=[])
+    assert client.calls[0]["status"] == "failed"
+    assert client.calls[0]["duration_seconds"] == 2
+
+
+def test_synthetic_zero_usage_does_not_become_real_zero_cost():
+    client = RecordingClient(SimpleNamespace(messages=SimpleNamespace(
+        create=lambda **kw: response([text_block("synthetic")]))), synthetic=True)
+    client.messages.create(system="test", messages=[])
+    assert client.calls[0]["input_tokens"] is None
+    assert client.calls[0]["output_tokens"] is None
+    assert client.calls[0]["usage_source"] == "synthetic"
+
+
+def test_tool_timing_wraps_real_execution():
+    now = [1.0]
+    calls = []
+
+    def execute(*args, **kwargs):
+        now[0] += 3
+        return "ok"
+
+    registry = SimpleNamespace(execute=execute)
+    record_tools(registry, calls, clock=lambda: now[0])
+    assert registry.execute("fixture", {}) == "ok"
+    assert calls == [{"tool": "fixture", "status": "complete", "output_bytes": 2,
+                      "duration_seconds": 3}]
+
+
+def test_source_manifest_works_without_git_and_excludes_user_files(tmp_path):
+    (tmp_path / "waku").mkdir()
+    (tmp_path / "waku" / "sample.py").write_text("pass\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("SYNTHETIC=never-hash-this\n", encoding="utf-8")
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "attachments" / "note.py").write_text("private", encoding="utf-8")
+    snapshot = source_snapshot(tmp_path)
+    assert snapshot["commit"] is None
+    assert list(snapshot["files"]) == ["waku/sample.py"]
