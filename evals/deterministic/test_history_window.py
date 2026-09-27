@@ -7,6 +7,8 @@ fixed window; older turns live in state.db + consolidation, not the prompt."""
 
 from __future__ import annotations
 
+import pytest
+
 from evals.helpers import ScriptedClient, make_waku, response, text_block
 
 
@@ -46,3 +48,34 @@ def test_default_window_is_generous_but_finite(tmp_path, monkeypatch):
     monkeypatch.delenv("WAKU_HISTORY_TURNS", raising=False)
     app = make_waku(tmp_path / "home", client=ScriptedClient([]))
     assert app.settings.history_turns == 12
+
+
+def test_zero_window_sends_only_current_message_and_preserves_log(tmp_path):
+    sent = []
+
+    class Recorder(ScriptedClient):
+        def _create(self, **kwargs):
+            if "system" in kwargs:
+                sent.append(list(kwargs["messages"]))
+            return super()._create(**kwargs)
+
+    app = make_waku(tmp_path / "home", history_turns=0, client=Recorder([
+        _gate_skip(), response([text_block("first")]),
+        _gate_skip(), response([text_block("second")]),
+    ]))
+    app.respond("old request")
+    app.respond("current request")
+    assert sent[-1] == [{"role": "user", "content": "current request"}]
+    assert len(list(app.memory.session_history("default"))) == 2
+    app.session.switch("default")
+    assert app.session.history == []
+
+
+@pytest.mark.parametrize("from_environment", [True, False])
+def test_negative_window_is_rejected(monkeypatch, from_environment):
+    from waku.config import Settings
+
+    if from_environment:
+        monkeypatch.setenv("WAKU_HISTORY_TURNS", "-1")
+    with pytest.raises(ValueError, match="history_turns must be non-negative"):
+        Settings(**({} if from_environment else {"history_turns": -1}))

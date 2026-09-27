@@ -37,6 +37,10 @@ per-turn gate decisions, and the raw traces inline.
 
 ## Catching bugs
 
+The history regressions cover zero and negative `WAKU_HISTORY_TURNS` values.
+Zero excludes earlier exchanges from the model prompt and session reload.
+The database retains those exchanges. Negative values fail configuration validation.
+
 When you catch a bug by using the thing live, you fix it AND add a
 deterministic case so it can never come back. A real example from this repo:
 the agent didn't know the current *time* and asked for it before scheduling

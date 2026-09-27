@@ -143,6 +143,10 @@ class Settings:
         default_factory=lambda: os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
     )
 
+    def __post_init__(self) -> None:
+        if self.history_turns < 0:
+            raise ValueError("history_turns must be non-negative (zero disables prior history)")
+
     def ensure_home(self) -> Path:
         self.home.mkdir(parents=True, exist_ok=True)
         (self.home / "traces").mkdir(exist_ok=True)
