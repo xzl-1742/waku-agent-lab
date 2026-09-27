@@ -54,3 +54,21 @@ def test_live_without_credentials_is_skipped(tmp_path, monkeypatch):
 
 def test_complete_required_suites_open_gate():
     assert gate.verdict({"deterministic": complete(), "judge": complete()}) == "complete"
+
+
+def test_live_gate_accepts_active_provider_key(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setenv("WAKU_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-key-never-sent")
+    monkeypatch.setattr(gate, "run", lambda suite: calls.append(suite) or complete())
+    assert gate.main(["--strict", "--live", "--output", str(tmp_path)]) == 0
+    assert calls == ["deterministic", "judge"]
+
+
+def test_unrelated_provider_key_cannot_enable_live_suite(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setenv("WAKU_PROVIDER", "anthropic")
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-key-never-sent")
+    monkeypatch.setattr(gate, "run", lambda suite: calls.append(suite) or complete())
+    assert gate.main(["--strict", "--live", "--output", str(tmp_path)]) == 2
+    assert calls == ["deterministic"]

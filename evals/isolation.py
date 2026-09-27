@@ -127,6 +127,14 @@ def _guard_network() -> None:
     socket.getaddrinfo = getaddrinfo
     socket.gethostbyname = wrap_host(socket.gethostbyname)
     socket.gethostbyname_ex = wrap_host(socket.gethostbyname_ex)
+    socket.gethostbyaddr = wrap_host(socket.gethostbyaddr)
+    original_getnameinfo = socket.getnameinfo
+
+    def getnameinfo(address, flags):
+        check(address[0])
+        return original_getnameinfo(address, flags)
+
+    socket.getnameinfo = getnameinfo
     socket.socket.connect = wrap_address(socket.socket.connect)
     socket.socket.connect_ex = wrap_address(socket.socket.connect_ex)
     socket.socket.sendto = sendto

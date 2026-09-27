@@ -107,9 +107,12 @@ def main(argv=None) -> int:
     suites["judge"] = skipped("live evaluation was not requested")
     if suites["deterministic"]["status"] == "complete" and args.live:
         from waku.config import load_settings
+        from waku.loop.models import PROVIDERS
 
         settings = load_settings()
-        suites["judge"] = (run("judge") if settings.api_key
+        provider = PROVIDERS.get(settings.provider)
+        has_key = bool(settings.api_key or (provider and os.getenv(provider.key_env)))
+        suites["judge"] = (run("judge") if has_key
                            else skipped(f"no credentials for {settings.provider}"))
     record = report(suites, args.output)
     if record["status"] == "failed":

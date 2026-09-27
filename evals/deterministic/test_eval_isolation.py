@@ -23,6 +23,10 @@ def test_config_was_isolated_before_import():
 def test_external_dns_and_connections_are_blocked():
     with pytest.raises(OSError, match="Offline eval"):
         socket.getaddrinfo("example.com", 443)
+    with pytest.raises(OSError, match="Offline eval"):
+        socket.gethostbyaddr("192.0.2.1")
+    with pytest.raises(OSError, match="Offline eval"):
+        socket.getnameinfo(("192.0.2.1", 443), 0)
     with socket.socket() as sock, pytest.raises(OSError, match="Offline eval"):
         sock.connect(("192.0.2.1", 443))
     with socket.socket(type=socket.SOCK_DGRAM) as sock, pytest.raises(OSError, match="Offline eval"):
