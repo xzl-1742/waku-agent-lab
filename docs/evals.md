@@ -19,7 +19,8 @@ make gate          # the release gate: deterministic must pass 100%, judge must 
 Deterministic tests are plain pytest in
 [`evals/deterministic/`](../evals/deterministic); judged ones use DeepEval in
 [`evals/judge/`](../evals/judge). CI runs the deterministic tier on every PR.
-The judge tier needs an API key, so `make gate` runs it locally.
+The judge tier needs an API key. `make gate` explicitly enables live evaluation
+and strict coverage checks; it can spend API credits.
 
 `python -m evals.offline` runs the deterministic suite in a fresh Python process.
 The launcher clears application settings and credentials, redirects the home to a
@@ -31,9 +32,16 @@ Dotenv discovery stays disabled except in the test of a synthetic scratch file.
 Direct pytest runs also install guards before collecting test modules.
 Live tests require `WAKU_RUN_LIVE_EVALS=1`; the offline launcher clears this flag.
 
-**Where the results show:** the terminal, and the dashboard's **Ops** tab — the
-release-gate verdict, an **eval-history** table (one row per `make gate`), the
-per-turn gate decisions, and the raw traces inline.
+`python -m waku.ops.release_gate` runs offline checks and reports quality as
+`incomplete` unless required live suites complete. `--strict` returns exit code 2
+for incomplete coverage; failures return 1. `--live` explicitly allows loading
+credentials and running paid judge calls. Missing credentials, empty suites,
+all-skipped suites and partial live skips cannot open the strict gate.
+Each suite records `complete`, `skipped` or `failed`, with counts and elapsed time.
+
+Reports go to `eval-results/eval_report.json` and `eval_runs.jsonl` by default.
+Pass `--output .waku` (or your configured agent home) to show the report in the
+dashboard's **Ops** tab. Reports retain the legacy dashboard fields.
 
 ## Catching bugs
 

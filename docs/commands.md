@@ -38,7 +38,7 @@ as their `waku connect` commands, and `/help` lists the graph workflows.
 | `make brief` · `make gather` | the morning briefing, as a loop or as a graph |
 | `make eval` | deterministic evals (0/1, no judge involved) |
 | `make eval-judge` | LLM-as-judge evals (scored %, needs an API key) |
-| `make gate` | the release gate: deterministic must pass, judge must clear its threshold |
+| `make gate` | strict release gate: offline checks must pass and paid judge checks must complete |
 | `make lint` | ruff over the code and the evals |
 | `make trace` | trace waterfalls in Phoenix at localhost:6006 |
 | `make shootout RUNS="…"` | the same tasks on different models, e.g. `RUNS="kimi:kimi-k3 anthropic:claude-opus-4-8"` |

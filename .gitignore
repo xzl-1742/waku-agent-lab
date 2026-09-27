@@ -9,6 +9,7 @@ traces/
 dist/
 .pytest_cache/
 .ruff_cache/
+eval-results/
 .waku/
 .waku.bak-*/
 .waku.prerename-bak/

@@ -47,7 +47,7 @@ eval-judge:     ## LLM-as-judge evals (scored %, needs an API key)
 	WAKU_RUN_LIVE_EVALS=1 $(PY) -m pytest -q evals/judge
 
 gate:           ## the release gate: deterministic must pass, judge must clear threshold
-	$(PY) -m waku.ops.release_gate
+	$(PY) -m waku.ops.release_gate --strict --live
 
 shootout:       ## same tasks, different brains: make shootout RUNS="kimi:kimi-k3 anthropic:claude-opus-4-8"
 	$(PY) scripts/shootout.py $(RUNS)

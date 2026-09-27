@@ -1,92 +1,126 @@
-"""Release gate — the diamond before "Release" on the whiteboard.
+"""Offline checks and an explicit, fail-closed quality gate.
 
-Changed the prompt? Swapped the model? Tuned retrieval top-k? Run the gate:
-
-    python -m waku.ops.release_gate     (or: make gate)
-
-Deterministic evals must pass 100% — they are unit tests; one failure blocks.
-Judge evals run when a key is present and report scores. Exit code 0 = ship.
+python -m waku.ops.release_gate --strict --live --output eval-results
+Live evaluation is opt-in and can spend API credits. Imports never load keys.
 """
 
 from __future__ import annotations
 
+import argparse
+import json
 import os
-import re
 import subprocess
 import sys
-from datetime import UTC
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
 from pathlib import Path
-
-from dotenv import load_dotenv
-
-load_dotenv()  # the key check below must see .env, same as the app does
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-def run(suite: str) -> tuple[int, dict]:
-    """Run a pytest suite; return (exit_code, {passed, failed}). Counts come
-    from the -q summary line — zero extra deps; 0/0 on a miss is honest."""
-    print(f"\n=== {suite} ===")
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", str(REPO / "evals" / suite)],
-        cwd=REPO, capture_output=True, text=True, check=False,
-    )
-    print(proc.stdout, end="")
-    print(proc.stderr, end="", file=sys.stderr)
-    counts = {k: (int(m.group(1)) if (m := re.search(rf"(\d+) {k}", proc.stdout)) else 0)
-              for k in ("passed", "failed")}
-    return proc.returncode, counts
+def skipped(reason: str) -> dict:
+    return {"status": "skipped", "reason": reason, "passed": 0, "failed": 0,
+            "errors": 0, "skipped": 0, "duration_seconds": None}
 
 
-def report(deterministic: str, judge: str, suites: dict | None = None) -> None:
-    """Persist the latest verdict AND append it to the run history."""
-    import json
-    from datetime import datetime
-
-    from waku.config import load_settings
-
-    settings = load_settings()
-    settings.ensure_home()
-    record = {
-        "deterministic": deterministic,
-        "judge": judge,
-        "suites": suites or {},
-        "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
-    }
-    (settings.home / "eval_report.json").write_text(json.dumps(record), encoding="utf-8")
-    with (settings.home / "eval_runs.jsonl").open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record) + "\n")
-
-
-def main() -> None:
-    suites = {}
-    code, suites["deterministic"] = run("deterministic")
-    if code:
-        report("fail", "not run", suites)
-        print("\nGATE CLOSED — deterministic evals failed. Fix before releasing.")
-        sys.exit(1)
-
-    # judge needs the ACTIVE provider's key (anthropic, openrouter, ...), same
-    # rule as evals/helpers.HAS_KEY
-    from waku.config import load_settings
-    from waku.loop.models import PROVIDERS
-
-    settings = load_settings()
-    provider = PROVIDERS.get(settings.provider)
-    if settings.api_key or (provider and os.getenv(provider.key_env)):
-        code, suites["judge"] = run("judge")
-        if code:
-            report("pass", "fail", suites)
-            print("\nGATE CLOSED — judge scores below threshold.")
-            sys.exit(1)
-        report("pass", "pass", suites)
+def read_result(path: Path, exit_code: int, elapsed: float) -> dict:
+    """JUnit distinguishes collection errors and all-skipped runs from passes."""
+    counts = {"passed": 0, "failed": 0, "errors": 0, "skipped": 0}
+    if path.exists():
+        try:
+            for case in ET.parse(path).iter("testcase"):
+                outcome = next((k for tag, k in (("failure", "failed"), ("error", "errors"),
+                                               ("skipped", "skipped"))
+                                if case.find(tag) is not None), "passed")
+                counts[outcome] += 1
+        except ET.ParseError:
+            return {**skipped("invalid pytest result"), "status": "failed",
+                    "duration_seconds": elapsed}
+    if exit_code not in (0, 5) or counts["failed"] or counts["errors"]:
+        status, reason = "failed", f"pytest exited {exit_code}"
+    elif not counts["passed"]:
+        status, reason = "skipped", "no checks passed (missing, empty or entirely skipped suite)"
     else:
-        report("pass", "skipped", suites)
-        print(f"\n(judge suite skipped: no API key for provider '{settings.provider}')")
+        status, reason = "complete", ""
+    return {**counts, "status": status, "reason": reason, "duration_seconds": elapsed}
 
-    print("\nGATE OPEN — safe to release.")
+
+def run(suite: str) -> dict:
+    if suite not in ("deterministic", "judge"):
+        raise ValueError(f"Unknown eval suite: {suite}")
+    print(f"\n=== {suite} ===")
+    with tempfile.TemporaryDirectory(prefix="waku-gate-") as scratch:
+        junit = Path(scratch) / "result.xml"
+        module = "evals.offline" if suite == "deterministic" else "pytest"
+        env = dict(os.environ)
+        if suite == "judge":
+            env["WAKU_RUN_LIVE_EVALS"] = "1"
+        env["PYTHONUTF8"] = "1"
+        started = time.perf_counter()
+        proc = subprocess.run(
+            [sys.executable, "-m", module, "-q", str(REPO / "evals" / suite),
+             f"--junitxml={junit}"], cwd=REPO, env=env,
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+        elapsed = time.perf_counter() - started
+        print(proc.stdout, end="")
+        print(proc.stderr, end="", file=sys.stderr)
+        return read_result(junit, proc.returncode, elapsed)
+
+
+def verdict(suites: dict) -> str:
+    required = ("deterministic", "judge")
+    if any(suites.get(name, {}).get("status") == "failed" for name in required):
+        return "failed"
+    if any(suites.get(name, {}).get("status") != "complete" for name in required):
+        return "incomplete"
+    if suites["judge"].get("skipped", 0):
+        return "incomplete"
+    return "complete"
+
+
+def report(suites: dict, output: Path) -> dict:
+    """Keep legacy dashboard fields while recording explicit suite coverage."""
+    legacy = {"complete": "pass", "failed": "fail", "skipped": "skipped"}
+    record = {
+        "schema_version": 1, "status": verdict(suites),
+        **{name: legacy.get(suites.get(name, {}).get("status"), "not run")
+           for name in ("deterministic", "judge")},
+        "suites": suites, "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "eval_report.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
+    with (output / "eval_runs.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record) + "\n")
+    return record
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--strict", action="store_true", help="Reject incomplete live coverage")
+    parser.add_argument("--live", action="store_true", help="Allow credential loading and paid judges")
+    parser.add_argument("--output", type=Path, default=Path("eval-results"))
+    args = parser.parse_args(argv)
+    suites = {"deterministic": run("deterministic")}
+    suites["judge"] = skipped("live evaluation was not requested")
+    if suites["deterministic"]["status"] == "complete" and args.live:
+        from waku.config import load_settings
+
+        settings = load_settings()
+        suites["judge"] = (run("judge") if settings.api_key
+                           else skipped(f"no credentials for {settings.provider}"))
+    record = report(suites, args.output)
+    if record["status"] == "failed":
+        print("GATE CLOSED: evaluation failed.")
+        return 1
+    if record["status"] == "incomplete":
+        print("QUALITY INCOMPLETE: live coverage is missing or skipped.")
+        return 2 if args.strict or suites["deterministic"]["status"] != "complete" else 0
+    print("GATE OPEN: required suites completed.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

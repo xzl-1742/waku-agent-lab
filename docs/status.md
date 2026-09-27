@@ -55,9 +55,9 @@ Additionally, and worth stating because people ask:
 - **No Windows CI.** The Windows bugs so far (#140, #141, both fixed) were
   found by contributors, not by us. Every Windows claim in this repo is
   untested.
-- **The judge evals are not in CI.** `make gate` runs deterministic evals at
-  100% plus a judge threshold, and CI runs only the first half. The judge tier
-  needs an API key, which CI does not have.
+- **The judge evals are not in CI.** `make gate` explicitly enables paid judge
+  evaluation and requires complete live coverage. Missing credentials or skipped
+  live checks leave quality incomplete. CI runs isolated offline checks.
 - **No provider smoke check.** Nothing verifies that a model in the picker
   resolves, which is why #137 reached a user.
 

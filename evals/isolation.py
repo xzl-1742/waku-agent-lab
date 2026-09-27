@@ -34,7 +34,7 @@ def install() -> Path:
     if inherited:
         scratch = Path(inherited).resolve()
     else:
-        _scratch = tempfile.TemporaryDirectory(prefix="waku-offline-")
+        _scratch = tempfile.TemporaryDirectory(prefix="waku-offline-", ignore_cleanup_errors=True)
         atexit.register(_scratch.cleanup)
         scratch = Path(_scratch.name).resolve()
         clean = {k: v for k, v in os.environ.items() if k.upper() in _PROCESS_ENV}
