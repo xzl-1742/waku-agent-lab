@@ -114,19 +114,25 @@ class Compactor:
 
     def _summarize(self, request, calls, notify):
         call_start = time.perf_counter()
-        response = self.client.messages.create(**request)
-        usage = getattr(response, "usage", None)
-        measured = getattr(usage, "measured", True) and bool(getattr(usage, "input_tokens", 0))
-        call = {"model": request["model"], "request_sha256": fingerprint(request),
-                "estimated_input_tokens": self.budget.measure(request)["estimated_input_tokens"],
-                "elapsed_ms": round((time.perf_counter() - call_start) * 1000, 3),
-                "usage_source": "provider" if measured else "unmeasured",
-                "input_tokens": getattr(usage, "input_tokens", None) if measured else None,
-                "output_tokens": getattr(usage, "output_tokens", None) if measured else None,
-                "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
-                "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None)}
-        calls.append(call)
-        notify("compaction_call", call)
+        response = None
+        try:
+            response = self.client.messages.create(**request)
+        finally:
+            usage = getattr(response, "usage", None)
+            measured = (getattr(usage, "measured", True) and getattr(usage, "input_tokens", None) is not None
+                        and getattr(usage, "output_tokens", None) is not None
+                        and (getattr(usage, "input_tokens", 0) + getattr(usage, "output_tokens", 0) > 0))
+            call = {"model": request["model"], "request_sha256": fingerprint(request),
+                    "estimated_input_tokens": self.budget.measure(request)["estimated_input_tokens"],
+                    "elapsed_ms": round((time.perf_counter() - call_start) * 1000, 3),
+                    "status": "complete" if response is not None else "failed",
+                    "usage_source": "provider" if measured else "unmeasured",
+                    "input_tokens": getattr(usage, "input_tokens", None) if measured else None,
+                    "output_tokens": getattr(usage, "output_tokens", None) if measured else None,
+                    "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
+                    "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None)}
+            calls.append(call)
+            notify("compaction_call", call)
         raw = "".join(block.text for block in response.content if block.type == "text")
         if response.stop_reason in ("max_tokens", "tool_use"):
             raise ValueError("Summary response was incomplete")

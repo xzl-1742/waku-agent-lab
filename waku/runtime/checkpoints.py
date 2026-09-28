@@ -41,7 +41,6 @@ class SourceTurn:
     turn_id: str
     rows: list
     messages: list
-    receipts: list
 
     @property
     def last_id(self):
@@ -85,6 +84,9 @@ class CheckpointStore:
             except TurnStopped as exc:
                 raise TurnStopped("An interrupted turn has incomplete tool records. Reconcile saved results "
                                   "before continuing; no action was repeated.") from exc
+            if messages[-1]["role"] != "assistant":
+                raise TurnStopped("An earlier turn ended before its final response was recorded. "
+                                  "Reconcile that turn before continuing; no action was repeated.")
             # Match each result occurrence, not just call_id: providers may reuse
             # an identifier on a later iteration in the same turn.
             remaining = list(executions)
@@ -100,14 +102,23 @@ class CheckpointStore:
                     remaining.remove(match)
                     if isinstance(block.get("content"), str):
                         block["content"] = reduce_output(block["content"], match["result_id"], self.records.output_cap)
-            receipts = [{"result_id": r["result_id"], "tool": r["tool"], "state": r["state"],
-                         "outcome": json.loads(r["outcome_json"])} for r in executions]
-            result.append(SourceTurn(turn_id, group, messages, receipts))
+            if remaining:
+                raise TurnStopped("An interrupted execution has no paired message result. Reconcile its saved receipt before continuing.")
+            result.append(SourceTurn(turn_id, group, messages))
         return result
 
     def import_legacy(self, session_id):
         """Import text-only legacy sessions once; never invent tool-call IDs."""
-        if self.conn.execute("SELECT 1 FROM session_messages WHERE session_id=? LIMIT 1", (session_id,)).fetchone():
+        existing = self.conn.execute(
+            "SELECT count(*) FROM session_messages WHERE session_id=? AND position=0", (session_id,),
+        ).fetchone()[0]
+        if existing:
+            legacy_turns = self.conn.execute(
+                "SELECT count(*) FROM chat_log WHERE session_id=? AND role='user'", (session_id,),
+            ).fetchone()[0]
+            if legacy_turns > existing:
+                raise TurnStopped("This session mixes older text-only history with structured turns. "
+                                  "Start a new compact session or keep the budget policy; existing history was kept.")
             return
         rows = self.conn.execute("SELECT * FROM chat_log WHERE session_id=? ORDER BY id", (session_id,)).fetchall()
         if not rows:
@@ -132,6 +143,13 @@ class CheckpointStore:
             current = self.latest(session_id)
             if (current["revision"] if current else 0) != revision:
                 raise TurnStopped("Checkpoint changed during compaction; the newer revision was kept.")
+            if metadata.get("source_sha256"):
+                sources = self.conn.execute(
+                    "SELECT id,role,content_json FROM session_messages WHERE session_id=? AND id>? AND id<=? ORDER BY id",
+                    (session_id, previous["covered_through"] if previous else 0, covered),
+                ).fetchall()
+                if fingerprint([dict(row) for row in sources]) != metadata["source_sha256"]:
+                    raise TurnStopped("Source messages changed during compaction; no checkpoint was published.")
             rows = self.conn.execute(
                 "SELECT id FROM session_messages WHERE session_id=? AND id<=? ORDER BY id", (session_id, covered),
             ).fetchall()

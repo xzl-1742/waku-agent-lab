@@ -13,7 +13,7 @@ from waku.loop.models import get_client
 from waku.ops.tracing import Tracer, compose
 from waku.runtime.checkpoints import CheckpointStore
 from waku.runtime.compaction import CompactedRequest, Compactor
-from waku.runtime.context import ContextBudget, TurnStopped, guard_client
+from waku.runtime.context import ContextBudget, TurnStopped, guard_client, validate_pairs
 from waku.runtime.records import ExecutionStore
 from waku.runtime.session import Session
 from waku.tools import build_registry
@@ -121,6 +121,16 @@ class Waku:
                 result = LoopResult(reply=str(exc), tool_calls=(self._turn_record.tool_calls
                                                                if self._turn_record else []))
                 notify("context_error", {"error": str(exc)})
+                if self.compactor and self._turn_record.position:
+                    import json
+
+                    rows = self.conn.execute("SELECT role,content_json FROM session_messages WHERE turn_id=? ORDER BY position",
+                                             (self._turn_record.turn_id,)).fetchall()
+                    try:
+                        validate_pairs([{"role": r["role"], "content": json.loads(r["content_json"])} for r in rows])
+                        self._turn_record.message("assistant", result.reply)
+                    except TurnStopped:
+                        pass  # An unfinished tool batch must remain visibly interrupted.
 
             quick = captured.get("graph_route", {}).get("target") == "quick_reply"
 

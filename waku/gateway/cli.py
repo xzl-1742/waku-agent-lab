@@ -58,7 +58,7 @@ def main() -> None:
     console.print(Panel.fit(
         "[bold]Waku[/bold] — local, yours, transparent.\n"
         f"home: {waku.settings.home.resolve()}   model: {waku.settings.model}\n"
-        "Commands: /memory · /quit",
+        "Commands: /memory · /compact · /quit",
         border_style="cyan",
     ))
     while True:

@@ -71,12 +71,13 @@ class Settings:
     # (watched kimi-k3 do exactly that at 2048). 8192 leaves room to think AND
     # answer; it's a ceiling, not a target, so efficient models still cost the same.
     max_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_MAX_TOKENS", "8192")))
-    # Working memory is a SLIDING WINDOW (like context RAM): only the last N
+    # Under window/budget policies, working memory is a sliding window: the last N
     # turns go into the prompt. Older turns aren't lost — they're in state.db,
     # distilled into facts by consolidation, and pulled back by the retrieval
     # gate when relevant. Without this cap a long thread (esp. the always-on
     # Telegram session) resends its whole history every turn until it explodes.
     history_turns: int = field(default_factory=lambda: int(os.getenv("WAKU_HISTORY_TURNS", "12")))
+    # The compact policy instead summarizes older turns after this threshold.
 
     # A verified provider capacity can override the conservative runtime fallback.
     context_policy: str = field(default_factory=lambda: os.getenv("WAKU_CONTEXT_POLICY", "budget"))

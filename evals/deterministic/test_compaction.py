@@ -159,6 +159,9 @@ def test_huge_active_turn_stops_before_model(tmp_path):
     assert "Context budget exceeded" in app.respond("x" * 80000).reply
     assert not any("system" in r for r in client.requests)
     assert app.checkpoints.latest("default") is None
+    # The failed turn has an explicit terminal record. A small request can
+    # continue after that completed error exchange is compressed.
+    assert app.respond("Continue briefly").reply == "Answer"
 
 
 def test_summary_call_limit_cannot_publish_partial_coverage(tmp_path):
@@ -225,3 +228,39 @@ def test_compact_arguments_do_not_start_a_model_turn(tmp_path, command):
     app = app_at(tmp_path)
     assert "without arguments" in app.respond(command).reply
     assert app.client.client.requests == []
+
+
+def test_failed_summary_call_still_has_timing_and_provenance(tmp_path, monkeypatch):
+    app = app_at(tmp_path)
+    seed(app)
+
+    def fail(**kwargs):
+        raise RuntimeError("synthetic summary failure")
+
+    monkeypatch.setattr(app.client.client.messages, "create", fail)
+    events = []
+    assert "synthetic summary failure" in app.compact(lambda k, e: events.append((k, e))).reply
+    call = next(e for k, e in events if k == "compaction_call")
+    assert call["status"] == "failed" and call["elapsed_ms"] >= 0
+    assert len(call["request_sha256"]) == 64
+    assert call["input_tokens"] is None
+    assert app.checkpoints.latest("default") is None
+
+
+def test_zero_history_does_not_load_checkpoint_into_answer(tmp_path):
+    app = app_at(tmp_path, history_turns=0)
+    seed(app)
+    app.compact()
+    app.respond("A fresh request")
+    final = app.client.client.requests[-1]
+    assert "budget under 50" not in final["system"]
+    assert len(final["messages"]) == 1
+
+
+def test_custom_summary_model_uses_same_client_with_own_capacity(tmp_path):
+    app = app_at(tmp_path, compaction_model="summary", compaction_context_tokens=14000)
+    seed(app)
+    assert "checkpoint 1" in app.compact().reply
+    calls = [r for r in app.client.client.requests if r.get("system") == COMPACTION_PROMPT]
+    assert calls and all(r["model"] == "summary" for r in calls)
+    assert all(estimate_request(r) + 2048 + 1024 <= 14000 for r in calls)
