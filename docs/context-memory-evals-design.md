@@ -169,6 +169,24 @@ session access. Scripted quality and token cost remain unmeasured.
 
 V2 replaces old message omission with a persistent task checkpoint plus recent messages.
 
+The implementation uses an opt-in `compact` context policy. `budget` remains
+the V1 default, and `window` remains the frozen baseline. A checkpoint belongs
+to one session and publishes its summary and source boundary in one SQLite
+transaction. Each replacement names the prior revision. Failed or concurrent
+summaries leave the published revision intact.
+
+The summary uses the configured main model unless `WAKU_COMPACTION_MODEL`
+selects another model on the same provider. Summarization has an independent
+output limit and a bounded number of input chunks. Recent complete turns keep
+their roles, tool identifiers and provider metadata. Saved result references
+preserve access to large tool outputs. Interrupted executions stop resumption
+with their recorded status; compaction never runs a tool.
+
+Context-limit recovery retries only the rejected model request, once, after
+compacting older completed turns. Recovery must produce a smaller request.
+An oversized active turn stops with a useful error if no older history can
+be compressed. The existing gateway locks also protect manual `/compact`.
+
 ### Changes
 
 1. Select older messages at valid boundaries and generate a structured summary containing goals, user constraints, completed actions, decisions, unresolved items, next steps and source references.
