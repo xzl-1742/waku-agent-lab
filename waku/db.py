@@ -104,6 +104,18 @@ CREATE TABLE IF NOT EXISTS tool_executions (
     completed_at TEXT
 );
 CREATE INDEX IF NOT EXISTS tool_executions_session ON tool_executions(session_id, turn_id);
+
+-- Append-only task checkpoints. The source log and execution ledger stay intact.
+CREATE TABLE IF NOT EXISTS session_checkpoints (
+    session_id TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    covered_through INTEGER NOT NULL,
+    retained_from INTEGER,
+    summary_json TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY(session_id, revision)
+);
 """
 
 
