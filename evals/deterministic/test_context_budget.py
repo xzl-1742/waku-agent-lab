@@ -43,7 +43,7 @@ def test_fit_removes_complete_old_tool_exchange():
                                                 for k in ("a", "b")]},
                 {"role": "assistant", "content": "done"},
                 {"role": "user", "content": "current"}]
-    budget = ContextBudget(capacity=1100, margin=100)
+    budget = ContextBudget(capacity=1100, margin=100, main_model="synthetic")
     fitted = budget.fit(request(messages))
     assert fitted["dropped_messages"] == 4
     assert messages == [{"role": "user", "content": "current"}]
@@ -51,7 +51,7 @@ def test_fit_removes_complete_old_tool_exchange():
 
 def test_active_turn_is_pinned_and_rejected_before_dispatch():
     client = ScriptedClient([response([text_block("never called")])])
-    guarded = guard_client(client, ContextBudget(capacity=1000, margin=100))
+    guarded = guard_client(client, ContextBudget(capacity=1000, margin=100, main_model="synthetic"))
     req = request([{ "role": "user", "content": "x" * 2000}])
     with pytest.raises(ContextOverflow):
         guarded.context_budget.fit(req)
@@ -62,9 +62,17 @@ def test_active_turn_is_pinned_and_rejected_before_dispatch():
 
 def test_schema_and_output_reserve_can_exhaust_budget():
     with pytest.raises(ContextOverflow):
-        ContextBudget(capacity=1000).check(request(tools=[{"schema": "x" * 1200}]))
+        ContextBudget(capacity=1000, main_model="synthetic").check(request(tools=[{"schema": "x" * 1200}]))
     with pytest.raises(ContextOverflow):
-        ContextBudget(capacity=1000, margin=100).check(request(max_tokens=950))
+        ContextBudget(capacity=1000, margin=100, main_model="synthetic").check(request(max_tokens=950))
+
+
+def test_capacity_override_cannot_leak_to_an_unrelated_model():
+    budget = ContextBudget(capacity=200000, main_model="configured", small_model="small")
+    assert budget.measure(request(model="unrelated"))["capacity_tokens"] == FALLBACK_CAPACITY
+    same = ContextBudget(capacity=200000, small_capacity=16000,
+                         main_model="shared", small_model="shared")
+    assert same.measure(request(model="shared"))["capacity_tokens"] == 16000
 
 
 def test_partial_tool_batch_is_rejected():

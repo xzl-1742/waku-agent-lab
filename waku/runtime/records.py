@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from uuid import uuid4
 
@@ -156,6 +157,7 @@ class TurnRecord:
             with path.open("xb") as handle:
                 handle.write(data)
                 handle.flush()
+                os.fsync(handle.fileno())
             self.store.conn.execute(
                 "UPDATE tool_executions SET state='complete',outcome_json=?,result_bytes=?,"
                 "result_sha256=?,completed_at=datetime('now') WHERE result_id=?",

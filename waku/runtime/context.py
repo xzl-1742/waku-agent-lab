@@ -106,8 +106,12 @@ class ContextBudget:
 
     def measure(self, request):
         model = request.get("model", "")
-        small = model == self.small_model and model != self.main_model
-        capacity = self.small_capacity if small else self.capacity
+        choices = []
+        if model == self.main_model:
+            choices.append((self.capacity, self.capacity_source))
+        if model == self.small_model:
+            choices.append((self.small_capacity, self.small_capacity_source))
+        capacity, source = min(choices) if choices else (FALLBACK_CAPACITY, "conservative_fallback")
         reserve = request.get("max_tokens", 0)
         with self._lock:
             ratio = self.ratios.get(model, 1.0)
@@ -115,7 +119,7 @@ class ContextBudget:
         return {"estimator": ESTIMATOR, "estimated_input_tokens": estimated,
                 "capacity_tokens": capacity, "output_reserve_tokens": reserve,
                 "safety_tokens": self.margin, "input_budget_tokens": capacity - reserve - self.margin,
-                "capacity_source": self.small_capacity_source if small else self.capacity_source,
+                "capacity_source": source,
                 "calibration_ratio": ratio, "model": model}
 
     def check(self, request):

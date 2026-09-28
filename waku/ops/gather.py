@@ -27,6 +27,7 @@ from rich.console import Console
 from waku.app import Waku
 from waku.graph import run_graph
 from waku.graph.workflows.gather import DIGEST_PROMPT, build_gather_graph
+from waku.runtime.context import BudgetedClient, TurnStopped
 
 DEFAULT_TOPICS = "AI agent harness loop memory eval"
 
@@ -156,7 +157,13 @@ def run_gather(waku: Waku | None = None, observer=None) -> dict:
             if observer:
                 observer(kind, ev)
 
-        return run_graph(build_bound_graph(waku), {}, observer=notify)
+        if isinstance(waku.client, BudgetedClient):
+            waku.client.notify = notify
+        try:
+            return run_graph(build_bound_graph(waku), {}, observer=notify)
+        except TurnStopped as exc:
+            notify("context_error", {"error": str(exc)})
+            return {"errors": {"context": str(exc)}}
     finally:
         if own:
             waku.close()

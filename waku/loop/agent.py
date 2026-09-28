@@ -136,4 +136,6 @@ def run_loop(
 
     # ---- guardrail 2: ran out of iterations
     result.reply = "(I hit my iteration limit before finishing — try breaking the request into smaller steps.)"
+    if records:
+        records.message("assistant", result.reply)
     return result

@@ -66,7 +66,8 @@ def test_every_request_including_post_tool_batches_fits(tmp_path):
                                             tool_block("second", {}, "b")], "tool_use"),
                        response([text_block("done")])])
     app = make_waku(tmp_path / "home", client=client, context_window_tokens=24000,
-                    small_context_window_tokens=8000, tool_output_bytes=1024)
+                    small_context_window_tokens=8000, tool_output_bytes=1024,
+                    model="synthetic-main", small_model="synthetic-small")
     fixture_tool(app, "中文" * 40000)
     fixture_tool(app, "json" * 40000, name="second")
     app.session.add_exchange("old" * 15000, "old answer")
@@ -172,3 +173,26 @@ def test_missing_adapter_usage_cannot_calibrate():
     reply = client._create(model="synthetic", messages=[], max_tokens=10)
     assert reply.usage.measured is False
     assert ContextBudget().observe({"messages": []}, reply) is None
+
+
+def test_gather_overflow_returns_error_without_a_draft(tmp_path, monkeypatch):
+    from waku.ops import gather
+
+    app = make_waku(tmp_path / "home", client=ScriptedClient([]))
+    monkeypatch.setattr(gather, "_github", lambda _: {"gh_text": "x" * 100000, "gh_open_prs": 1})
+    monkeypatch.setattr(gather, "_web", lambda _: "")
+    monkeypatch.setattr(gather, "_calendar", lambda _: {"cal_text": "", "cal_event_count": 0})
+    monkeypatch.setattr(gather, "_memory", lambda _: "")
+    state = gather.run_gather(app)
+    assert "budget exceeded" in state["errors"]["context"]
+    assert "draft_path" not in state
+
+
+def test_iteration_limit_preserves_tool_pair_and_terminal_reply(tmp_path):
+    app = make_waku(tmp_path / "home", max_iterations=1, client=ScriptedClient([
+        skip_gate(), response([tool_block("fixture", {})], "tool_use")]))
+    fixture_tool(app, "receipt")
+    result = app.respond("run")
+    rows = app.conn.execute("SELECT role,content_json FROM session_messages ORDER BY id").fetchall()
+    assert [r["role"] for r in rows] == ["user", "assistant", "user", "assistant"]
+    assert json.loads(rows[-1]["content_json"]) == result.reply
