@@ -78,6 +78,13 @@ class Settings:
     # Telegram session) resends its whole history every turn until it explodes.
     history_turns: int = field(default_factory=lambda: int(os.getenv("WAKU_HISTORY_TURNS", "12")))
 
+    # A verified provider capacity can override the conservative runtime fallback.
+    context_policy: str = field(default_factory=lambda: os.getenv("WAKU_CONTEXT_POLICY", "budget"))
+    context_window_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_CONTEXT_WINDOW", "0")))
+    small_context_window_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_SMALL_CONTEXT_WINDOW", "0")))
+    context_safety_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_CONTEXT_SAFETY", "1024")))
+    tool_output_bytes: int = field(default_factory=lambda: int(os.getenv("WAKU_TOOL_OUTPUT_BYTES", "4096")))
+
     # --- Memory
     # Consolidate (distill chats into durable facts) only after N new exchanges.
     consolidate_every: int = field(default_factory=lambda: int(os.getenv("WAKU_CONSOLIDATE_EVERY", "6")))
@@ -146,6 +153,14 @@ class Settings:
     def __post_init__(self) -> None:
         if self.history_turns < 0:
             raise ValueError("history_turns must be non-negative (zero disables prior history)")
+        if self.context_policy not in ("budget", "window"):
+            raise ValueError("context_policy must be 'budget' or 'window'")
+        if min(self.context_window_tokens, self.small_context_window_tokens, self.context_safety_tokens) < 0:
+            raise ValueError("context capacities and safety margin must be non-negative")
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+        if self.tool_output_bytes < 1024:
+            raise ValueError("tool_output_bytes must be at least 1024")
 
     def ensure_home(self) -> Path:
         self.home.mkdir(parents=True, exist_ok=True)
