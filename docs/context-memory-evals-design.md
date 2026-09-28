@@ -216,6 +216,30 @@ V2 completes the first usable milestone: long conversations can continue from a 
 
 V3 gives long-term memory a reliable lifecycle independently of retrieval improvements.
 
+### V3 implementation decisions
+
+`WAKU_MEMORY_POLICY=lifecycle` enables SQLite lifecycle writes and bounded
+session extraction. The default remains `legacy` for the frozen comparisons.
+Persisted validity and suppression rules remain enforced after disabling new
+lifecycle writes. Remote stores keep ordinary CRUD with opaque IDs; requesting
+SQLite lifecycle guarantees with a remote store fails explicitly.
+
+Memory metadata separates global, project and session scope from the session
+where a fact was learned. Explicit corrections create linked versions. Exact
+normalized duplicates share one active record; similar wording never replaces
+a different record. Batches record exact source IDs and hashes, and commit
+their writes and processed markers in one SQLite transaction.
+
+Suppression retains identifiers and hashes, excludes implicated source groups,
+and invalidates earlier checkpoints using a persistent generation. Original
+chat and result records remain intact. A same-turn correction or deletion ends
+the tool batch with a deterministic acknowledgement before any further model
+call. Readable exports refresh atomically before success is reported.
+
+The initial evaluation labels are `V3-window` and `V3-compact`. Their metadata
+identifies lifecycle policy and unchanged retrieval policy separately. V5's
+combined C/D labels remain reserved until the retrieval work is implemented.
+
 ### Changes
 
 1. Route explicit saves, consolidation, edits and deletes through the selected store and a shared policy layer. Preserve opaque backend IDs.
