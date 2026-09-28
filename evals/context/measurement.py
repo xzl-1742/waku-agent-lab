@@ -42,10 +42,17 @@ class RecordingClient:
         self.last_main_input = ""
 
     def create(self, **kwargs):
+        from waku.runtime.context import estimate_request, validate_pairs
+
         stage = request_stage(kwargs)
+        validate_pairs(kwargs.get("messages", []))
         if stage == "answer":
             self.last_main_input = str(kwargs)
         record = {"stage": stage, "model": kwargs.get("model"),
+                  "estimated_input_tokens": estimate_request(kwargs),
+                  "max_tokens": kwargs.get("max_tokens"),
+                  "tool_schema_sha256": digest(kwargs.get("tools", [])),
+                  "pairing_valid": True,
                   "request_sha256": digest(kwargs), "status": "failed",
                   "input_tokens": None, "output_tokens": None,
                   "usage_source": "synthetic" if self.synthetic else "unmeasured"}
@@ -101,7 +108,7 @@ def source_snapshot(root=ROOT):
     return {"commit": commit, "manifest_sha256": digest(manifest), "files": manifest}
 
 
-def metadata():
+def metadata(configuration="A", capacity=32768):
     from waku.memory.consolidation import SUMMARIZER_PROMPT
     from waku.memory.retrieval_gate import GATE_PROMPT
     from waku.runtime.session import DEFAULT_SOUL
@@ -109,13 +116,16 @@ def metadata():
     prompts = {"soul": DEFAULT_SOUL, "gate": GATE_PROMPT, "consolidation": SUMMARIZER_PROMPT}
     references = json.loads(FIXTURES.with_name("references.json").read_text(encoding="utf-8"))
     return {
-        "schema_version": 1, "configuration": "A", "runner": "scripted-offline-v0",
+        "schema_version": 2, "configuration": configuration, "runner": "scripted-offline-v1",
         "python": platform.python_version(), "platform": platform.system(),
         "models": {"answer": "scripted-answer", "gate": "scripted-small",
                    "consolidation": "scripted-small", "judge": None},
         "settings": {"history_turns": 12, "consolidate_every": 6, "retrieval_top_k": 4,
                      "max_iterations": 10, "max_tokens": 8192, "stream": False,
-                     "semantic_store": "sqlite", "episodic_store": "sqlite"},
+                     "semantic_store": "sqlite", "episodic_store": "sqlite",
+                     "context_policy": "window" if configuration == "A" else "budget",
+                     "context_window_tokens": capacity, "small_context_window_tokens": capacity,
+                     "context_safety_tokens": 1024, "tool_output_bytes": 4096},
         "clock": "2026-01-15T12:00:00+00:00", "trial": 1,
         "prompts": {k: {"text": v, "sha256": digest(v)} for k, v in prompts.items()},
         "fixtures_sha256": hashlib.sha256(FIXTURES.read_text(encoding="utf-8").encode()).hexdigest(),

@@ -66,7 +66,7 @@ class ScenarioClient:
         return response([text_block(text)])
 
 
-def build_app(home, client, tool_calls, output_kib):
+def build_app(home, client, tool_calls, output_kib, configuration="A", capacity=32768):
     from evals.helpers import make_waku
     from waku.tools.registry import Tool
 
@@ -74,6 +74,8 @@ def build_app(home, client, tool_calls, output_kib):
                     small_model="scripted-small", history_turns=12, consolidate_every=6,
                     retrieval_top_k=4, max_iterations=10, max_tokens=8192,
                     semantic_store="sqlite", episodic_store="sqlite",
+                    context_policy="window" if configuration == "A" else "budget",
+                    context_window_tokens=capacity, small_context_window_tokens=capacity,
                     experimental=False, gh_tool=False)
     app.conn.execute("CREATE TABLE IF NOT EXISTS eval_actions (receipt TEXT NOT NULL)")
 
@@ -92,20 +94,26 @@ def build_app(home, client, tool_calls, output_kib):
     return app
 
 
-def run_case(case, home):
+def run_case(case, home, configuration="A", capacity=32768):
     # This runner must never create a persistent home alongside a user's files.
     if not os.environ.get("WAKU_EVAL_ROOT") or not home.resolve().is_relative_to(
         Path(os.environ["WAKU_EVAL_ROOT"]).resolve()
     ):
         raise RuntimeError("Run context baselines through the offline isolation bootstrap")
+    if configuration not in ("A", "B"):
+        raise ValueError("Only configurations A and B are implemented")
     script = ScenarioClient()
     client = RecordingClient(script, synthetic=True)
     tool_calls, turn_seconds, checks = [], [], []
-    app = build_app(home, client, tool_calls, case["output_kib"])
+    app = build_app(home, client, tool_calls, case["output_kib"], configuration, capacity)
     app.session.start_new("primary-project")
     steps = expand(case)
     started = time.perf_counter()
-    final_input, errors = "", []
+    final_input, errors, context_events = "", [], []
+
+    def observe(kind, event):
+        if kind in ("context", "context_error"):
+            context_events.append({"kind": kind, **event})
     try:
         with patch("datetime.datetime", FixedDatetime):
             for step in steps:
@@ -114,12 +122,12 @@ def run_case(case, home):
                 elif step["op"] == "restart":
                     app.close()
                     app.conn.close()
-                    app = build_app(home, client, tool_calls, case["output_kib"])
+                    app = build_app(home, client, tool_calls, case["output_kib"], configuration, capacity)
                     app.session.switch(step["session"])
                 elif step["op"] == "turn":
                     script.prepare(step)
                     turn_start = time.perf_counter()
-                    app.respond(step["message"], stream=False, source="eval")
+                    app.respond(step["message"], stream=False, source="eval", observer=observe)
                     turn_seconds.append(time.perf_counter() - turn_start)
                     if script.pending:
                         raise ValueError("Model response script was not fully consumed")
@@ -143,6 +151,18 @@ def run_case(case, home):
             {"name": "session_transcript_isolation",
              "passed": "OTHER_SESSION_SENTINEL" not in final_input},
         ]
+        if configuration == "B":
+            executions = app.conn.execute("SELECT * FROM tool_executions").fetchall()
+            checks.extend([
+                {"name": "request_budgets", "passed": all(
+                    c["estimated_input_tokens"] + c["max_tokens"] + 1024 <= capacity
+                    for c in client.calls)},
+                {"name": "artifacts_recoverable", "passed": all(
+                    e["state"] == "complete" and app.records.path(e["result_id"]).stat().st_size == e["result_bytes"]
+                    for e in executions) and len(executions) == len(tool_calls)},
+                {"name": "canonical_messages_saved", "passed": app.conn.execute(
+                    "SELECT COUNT(*) FROM session_messages").fetchone()[0] >= chats},
+            ])
     except Exception as exc:
         errors.append(f"{type(exc).__name__}: {exc}")
     finally:
@@ -151,6 +171,7 @@ def run_case(case, home):
     elapsed = time.perf_counter() - started
     return {
         "id": case["id"], "family": case["family"], "split": case["split"],
+        "configuration": configuration,
         "status": "complete" if checks and all(c["passed"] for c in checks) and not errors else "failed",
         "trial": 1, "expanded_fixture_sha256": digest(steps), "errors": errors,
         "outcome_checks": checks, "quality_status": "incomplete", "task_success": None,
@@ -162,6 +183,9 @@ def run_case(case, home):
         "tool_seconds": sum(c["duration_seconds"] for c in tool_calls),
         "duration_seconds": elapsed, "turn_seconds": turn_seconds,
         "calls": client.calls, "tool_calls": tool_calls,
+        "context_events": context_events,
+        "estimated_input_tokens_total": sum(c["estimated_input_tokens"] for c in client.calls),
+        "estimated_input_tokens_peak": max((c["estimated_input_tokens"] for c in client.calls), default=0),
         "evidence_probes": {
             "current_fact_in_final_input": case["current"] in final_input,
             "obsolete_fact_in_final_input": (case["old"] in final_input
@@ -170,19 +194,24 @@ def run_case(case, home):
     }
 
 
-def make_report(cases, root):
-    results = [run_case(case, root / case["id"]) for case in cases]
+def make_report(cases, root, configuration="A", capacity=32768):
+    results = [run_case(case, root / case["id"], configuration, capacity) for case in cases]
     durations = sorted(t for case in results for t in case["turn_seconds"])
     return {
-        **metadata(), "status": "failed" if any(c["status"] == "failed" for c in results) else "complete",
+        **metadata(configuration, capacity), "status": "failed" if any(c["status"] == "failed" for c in results) else "complete",
         "quality_status": "incomplete", "live": {"status": "skipped", "reason": "not requested"},
-        "unavailable_configurations": ["B", "C", "D"],
+        "unavailable_configurations": ["C", "D"],
         "measurement_limits": ["Scripted replies cannot establish model quality or token cost.",
                                "Call counts measure client invocations, excluding hidden SDK retries.",
                                "Consolidation outputs empty facts; extraction quality is unmeasured.",
                                "Evidence probes inspect input availability, not model understanding."],
         "summary": {"scenarios": len(results), "complete": sum(c["status"] == "complete" for c in results),
                     "turns": len(durations), "model_calls": sum(c["model_calls"] for c in results),
+                    "estimated_input_tokens_total": sum(c["estimated_input_tokens_total"] for c in results),
+                    "estimated_input_tokens_peak": max((c["estimated_input_tokens_peak"] for c in results), default=0),
+                    "budget_violations": sum(c["estimated_input_tokens"] + c["max_tokens"] + 1024 > capacity
+                                             for case in results for c in case["calls"]),
+                    "rejected_requests": sum(e.get("stage") == "rejected" for case in results for e in case["context_events"]),
                     "turn_median_seconds": statistics.median(durations) if durations else None,
                     "turn_p95_seconds": durations[max(0, (95 * len(durations) + 99) // 100 - 1)] if durations else None,
                     "input_tokens": None, "output_tokens": None, "cost_usd": None},
@@ -193,6 +222,8 @@ def make_report(cases, root):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", choices=["development", "reserved", "all"], default="development")
+    parser.add_argument("--configuration", choices=["A", "B"], default="A")
+    parser.add_argument("--capacity", type=int, default=32768)
     parser.add_argument("--output", type=Path, default=Path("eval-results/context-v0.json"))
     args = parser.parse_args(argv)
     from evals.isolation import install
@@ -200,7 +231,7 @@ def main(argv=None):
     scratch = install()
     cases = [c for c in load_cases() if args.split == "all" or c["split"] == args.split]
     with tempfile.TemporaryDirectory(prefix="context-", dir=scratch) as root:
-        report = make_report(cases, Path(root))
+        report = make_report(cases, Path(root), args.configuration, args.capacity)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"status": report["status"], "quality_status": report["quality_status"],

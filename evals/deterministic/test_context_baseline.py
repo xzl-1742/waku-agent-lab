@@ -42,6 +42,26 @@ def test_long_context_probe_detects_missing_constraint(tmp_path):
     assert not result["evidence_probes"]["current_fact_in_final_input"]
 
 
+@pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
+def test_budget_configuration_completes_without_oversize_dispatch(case, tmp_path):
+    result = run_case(case, tmp_path / "home", configuration="B")
+    assert result["status"] == "complete", result
+    assert result["quality_status"] == "incomplete"
+    assert all(call["estimated_input_tokens"] + call["max_tokens"] + 1024 <= 32768
+               for call in result["calls"])
+    assert result["estimated_input_tokens_peak"] < 32768
+
+
+def test_large_tool_scenario_reduces_estimated_input_without_extra_model_calls(tmp_path):
+    case = next(c for c in CASES if c["id"] == "tool-03")
+    a = run_case(case, tmp_path / "a", configuration="A")
+    b = run_case(case, tmp_path / "b", configuration="B")
+    assert a["status"] == b["status"] == "complete"
+    assert a["model_calls"] == b["model_calls"]
+    assert b["estimated_input_tokens_total"] < a["estimated_input_tokens_total"]
+    assert b["estimated_input_tokens_peak"] < a["estimated_input_tokens_peak"]
+
+
 def test_unknown_fixture_schema_and_family_fail_loudly(tmp_path):
     data = json.loads(FIXTURES.read_text(encoding="utf-8"))
     path = tmp_path / "cases.json"
