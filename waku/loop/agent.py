@@ -52,9 +52,9 @@ def run_loop(
     budget: ContextBudget | None = None,
     records=None,
 ) -> LoopResult:
-    """Run one agent turn. `messages` is mutated in place — after the call it
-    contains the full working memory of the turn (assistant thoughts, tool
-    calls, tool results), which is exactly what gets traced.
+    """Run one agent turn. `messages` is mutated in place and contains bounded
+    working memory. When records are supplied, original assistant blocks and
+    full tool outputs are persisted separately before prompt reduction.
 
     stream=True emits the assistant's text as it's generated (notify("text",
     {"delta": ...})) so a gateway can show it appear token by token — used by

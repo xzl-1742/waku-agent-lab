@@ -8,6 +8,10 @@ covers it — a parallel prefetch would double-retrieve), and a `gather` fan-in 
 sits before the router so it waits on both parallel branches.
 Scope: a fifth pillar candidate — **Graph** — sitting beside Harness, Loop, Memory, Eval.
 
+V1 adds a terminal-error exception to ordinary graph fallback. Budget and recording
+errors propagate to the runtime; a graph that already started a tool cannot fall
+back to replaying the turn. See [the V1 report](v1-baseline.md).
+
 ## 1. What we're adding and why
 
 `waku/loop/agent.py` is one agent turn: a while-loop where the model picks tools until

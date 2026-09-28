@@ -141,7 +141,7 @@ friendly view; the **Data** tab shows the raw `state.db` tables.
   dashboard renders the topology from the engine's own `describe()` so the picture
   can't drift. See `docs/agent-graphs-design.md`.
 
-## What this deliberately is not
+## Context budgets and retained results (V1)
 
 V1 defaults to the `budget` context policy. It counts the entire serialized request,
 reserves output tokens and a safety margin, then removes whole oldest exchanges
@@ -167,6 +167,8 @@ Large observations retain execution state, quoted outcome fields, head/tail exce
 and a result reference. Reported text does not prove external action success. Recent
 prompt history keeps these bounded observations; canonical records retain originals.
 V1 does not summarize history, remove raw data or guarantee exactly-once external actions.
+
+## What this deliberately is not
 
 Not a framework, not multi-agent, not production. (Still not multi-agent even with
 graph workflows: a graph's `agent_node` is the same loop invoked as one step — no

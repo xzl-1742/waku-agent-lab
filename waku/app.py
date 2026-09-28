@@ -78,10 +78,8 @@ class Waku:
         self._turn_record = self.records.turn(self.session.session_id, source) if self.budget else None
 
         with self.tracer.turn(user_message):
-            # The graph front door is optional and can NEVER make Waku worse:
-            # flag off → this is exactly the old code path; flag on → the triage
-            # graph decides quick vs full, and any failure anywhere falls open
-            # to the plain loop below (same fail-open rule as the retrieval gate).
+            # The optional graph selects quick vs full. Pre-action failures can
+            # fall back to the loop; terminal errors cannot replay side effects.
             result, stopped = None, False
             try:
                 if self._turn_record:
@@ -147,10 +145,8 @@ class Waku:
         verbatim so the graph's full_agent node calls the SAME code as the
         flag-off default — loop-as-a-node can never drift from loop-as-default."""
         system = self.session.build_system(user_message, notify=notify)
-        # Working memory is a bounded window: only the last N turns (2 rows
-        # each) enter the prompt, so context/cost/latency stay flat no matter
-        # how long the conversation runs. Older turns live in state.db and
-        # come back via the retrieval gate + episodic memory when relevant.
+        # Start with the last N exchanges; the loop additionally checks total
+        # input size under the budget policy. Original records stay in state.db.
         window = self.settings.history_turns * 2
         history = self.session.history[-window:] if window else []
         messages = history + [{"role": "user", "content": user_message}]
@@ -170,9 +166,8 @@ class Waku:
         )
 
     def _respond_via_graph(self, user_message: str, notify, stream: bool) -> LoopResult | None:
-        """One turn through the triage graph workflow. Returns None whenever
-        the graph didn't produce an answer — respond() then falls open to the
-        plain loop, so this path can only ever ADD speed, never lose a reply."""
+        """Run the triage graph. An empty pre-action result may fall back;
+        terminal failures and failures after execution must stop the turn."""
         from waku.graph import run_graph
         from waku.graph.workflows.triage import (
             QUICK_REPLY_PROMPT,

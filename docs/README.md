@@ -33,6 +33,7 @@ into four groups.
 | [agent-graphs-design.md](agent-graphs-design.md) | the graph engine's design and its fail-open rule |
 | [context-memory-evals-design.md](context-memory-evals-design.md) | a proposed six-version sequence for context compaction, memory reliability and evaluation |
 | [v0-baseline.md](v0-baseline.md) | measured V0 execution coverage, synthetic baseline findings and reproduction commands |
+| [v1-baseline.md](v1-baseline.md) | bounded-request behavior, frozen A/B measurements and operating limits |
 | [providers-registry.md](providers-registry.md) | adding a model provider: one table in `waku/providers.toml` |
 | [memory-backends-playbook.md](memory-backends-playbook.md) | seeing your memories in each provider's own console |
 | [benchmarks.md](benchmarks.md) | what has been measured, and how |

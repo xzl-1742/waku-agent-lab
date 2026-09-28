@@ -16,9 +16,9 @@ That's it. Three ideas carry everything:
   routers  plain Python functions over state. Models write state; code reads
            it and picks the edge. No LLM ever decides control flow directly.
   guards   the loop's two-guardrail pattern, generalized: per-node max_visits
-           (bounded cycles) + global max_steps (never spin forever). A node
-           exception is recorded and surfaced, never raised out of the run —
-           same surface-don't-crash rule as ToolRegistry.execute.
+           (bounded cycles) + global max_steps (never spin forever). Ordinary
+           node exceptions are recorded and surfaced. A terminal budget or
+           recording error propagates so the caller cannot replay side effects.
 
 Waves trade a little pipelining for a lot of legibility: execution order is
 deterministic, so traces read the same way twice and evals can pin the path.

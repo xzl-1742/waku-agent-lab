@@ -6,7 +6,7 @@
 Read this before opening a PR or filing an issue: most of what is already
 known-broken is below, and half of it already has a fix in flight.
 
-**Last updated:** 2026-09-27
+**Last updated:** 2026-09-28
 
 ---
 
@@ -17,7 +17,7 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**924 checks pass in the isolated offline suite**, with no API key; 63 checks
+**994 checks pass in the isolated offline suite**, with no API key; 63 checks
 skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
@@ -25,6 +25,13 @@ integrations registry.
 **V0 context/memory baseline is available.** Thirty-six synthetic scenarios cover
 1,632 turns with call timings, state checks and reproducibility metadata. Real
 model quality and cost remain unmeasured. See [the V0 report](v0-baseline.md).
+
+**V1 bounds requests and tool observations by default.** The frozen A/B run
+completed all 36 scenarios on each policy. Estimated total input fell 34.1%,
+peak input fell 82.9%, and no B request exceeded its configured estimate budget.
+Durable message/tool records and session-scoped result reads preserve original
+outputs. Local scripted latency increased; real token cost and model quality are
+unmeasured. See [the V1 report](v1-baseline.md).
 
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.
