@@ -17,7 +17,7 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**994 checks pass in the isolated offline suite**, with no API key; 63 checks
+**1065 checks pass in the isolated offline suite**, with no API key; 63 checks
 skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
@@ -41,7 +41,7 @@ recovery attempt after a provider context rejection. `/compact` works through
 the existing CLI, dashboard and Telegram command paths. The deterministic B2
 scenarios exercise source retention and request limits; real-model retention
 quality and cost remain unmeasured. `budget` remains the default while V2 is
-being evaluated. See [the V2 design](context-memory-evals-design.md).
+being evaluated. See [the V2 report](v2-baseline.md).
 
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.

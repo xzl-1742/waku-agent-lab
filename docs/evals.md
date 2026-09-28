@@ -67,7 +67,7 @@ Each client/tool call measures its actual execution boundary with a monotonic cl
 Client-call counts exclude hidden SDK retries. Missing and synthetic token usage
 and costs remain `null`; real-model quality remains `incomplete`.
 Configuration A retains the window policy; V1 adds B with context budgets and
-recoverable tool outputs. C and D remain unavailable.
+recoverable tool outputs. V2 adds B2 with persistent checkpoints. C and D remain unavailable.
 The runner supports scripted execution only; paid scenario comparisons remain
 separate work. The existing live judge suite is enabled only by an explicit command.
 
@@ -76,7 +76,7 @@ official Claude Code documentation in `evals/context/references.json`.
 
 ## Context budgets and A/B comparisons (V1 and V2)
 
-Run both policies against the same frozen data:
+Run each policy against the same frozen data:
 
 ```bash
 python -m evals.context.runner --configuration A --split all --output eval-results/context-v1-A.json
@@ -84,11 +84,11 @@ python -m evals.context.runner --configuration B --split all --output eval-resul
 python -m evals.context.runner --configuration B2 --split all --output eval-results/context-v2-B2.json
 ```
 
-Both runs use a 32,768-token test capacity, 8,192 output reserve and 1,024 safety
+All runs use a 32,768-token test capacity, 8,192 output reserve and 1,024 safety
 margin for main calls. `--capacity` changes the test capacity for both model roles.
 Reports include per-request estimates, model output allowances, tool-schema hashes,
 pairing checks, recoverable artifact checks and source manifests. Estimate totals
-include answer, gate and consolidation calls. A budget violation in A means its
+include answer, gate, consolidation and any compaction calls. A budget violation in A means its
 estimated request would exceed B's configured budget, not a measured provider rejection.
 B can reject an oversized helper request without dispatching it; rejected requests
 remain visible in the report. B2 enables session compaction with an
@@ -124,11 +124,13 @@ it in. The gate records each run in its output directory.
 
 ## Spend is permanent
 
-Every LLM call's tokens are appended to `.waku/usage.jsonl`, an append-only
-ledger that a demo reset never wipes. The **Ops** tab shows the all-time cost,
-tokens, and a per-day / per-provider breakdown (dollar cost is estimated from
-tokens, which are the ground truth). So the number on screen is your real
-running total, not a per-session guess.
+The loop and compactor append usage to `.waku/usage.jsonl`, an append-only
+ledger that a demo reset never wipes. Compaction records its model, request
+hash, cache usage when available, and null counts when usage is unavailable.
+The **Ops** tab totals recorded token counts and estimates cost from them.
+Missing usage contributes no tokens or dollars to those totals; the usage API
+also reports an `unmeasured_calls` count. V5 will extend accounting across all
+helper calls and expose coverage in the existing views.
 
 ## Tracing is always on
 

@@ -113,6 +113,6 @@ is ignored by Git. Configuration C/D and paid scenario comparisons are unavailab
   Standalone loops and graph LLM nodes still enforce a conservative request budget;
   durable records and result reading require the Waku runtime's injected store.
 
-The [evaluation guide](evals.md#context-budgets-and-ab-comparisons-v1) lists the
+The [evaluation guide](evals.md#context-budgets-and-ab-comparisons-v1-and-v2) lists the
 configuration variables and their defaults. `WAKU_CONTEXT_POLICY=window` restores
 the baseline prompt policy without deleting existing records or artifacts.
