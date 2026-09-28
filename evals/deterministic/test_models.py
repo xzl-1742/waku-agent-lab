@@ -113,6 +113,38 @@ def test_gemini_thought_signature_round_trips():
     assert kwargs["messages"][0]["tool_calls"][0]["extra_content"] == sig   # echoed back
 
 
+def test_streamed_signature_survives_persisted_message_round_trip():
+    from waku.runtime.context import plain
+
+    client = models.OpenAICompatClient.__new__(models.OpenAICompatClient)
+    signature = {"google": {"thought_signature": "stream-signature"}}
+    call = SimpleNamespace(index=0, id="call", extra_content=signature,
+                           function=SimpleNamespace(name="read", arguments="{}"))
+    chunk = SimpleNamespace(usage=None, choices=[SimpleNamespace(delta=SimpleNamespace(content=None, tool_calls=[call]))])
+    client._call = lambda kwargs, **extra: iter([chunk])
+    with client._stream(model="test", messages=[], max_tokens=10) as stream:
+        assert list(stream.text_stream) == []
+        blocks = plain(stream.get_final_message().content)
+    request = client._to_openai(model="test", max_tokens=10, messages=[{"role": "assistant", "content": blocks}])
+    assert request["messages"][0]["tool_calls"][0]["extra_content"] == signature
+
+
+def test_context_limit_never_triggers_token_parameter_fallback():
+    from evals.deterministic.test_compaction import ContextLimit
+
+    calls = []
+
+    def fail(**kwargs):
+        calls.append(kwargs)
+        raise ContextLimit("maximum context length exceeded including max_completion_tokens")
+
+    client = models.OpenAICompatClient.__new__(models.OpenAICompatClient)
+    client._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fail)))
+    with pytest.raises(ContextLimit):
+        client._call({"max_completion_tokens": 100})
+    assert len(calls) == 1
+
+
 def test_deepseek_provider_uses_expected_key_endpoint_and_models(monkeypatch, tmp_path):
     captured = {}
 

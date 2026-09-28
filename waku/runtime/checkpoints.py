@@ -21,7 +21,7 @@ def validate_summary(summary, source_ids):
     entries = []
     for field in FIELDS:
         if not isinstance(summary[field], list):
-            raise ValueError("Summary fields must be lists")
+            raise TypeError("Invalid summary field: expected an array")
         for item in summary[field]:
             if not isinstance(item, dict) or set(item) != {"text", "source_ids"}:
                 raise ValueError("Each summary item needs text and source_ids")

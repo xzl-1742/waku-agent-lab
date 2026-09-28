@@ -301,6 +301,10 @@ class OpenAICompatClient:
         try:
             return self._client.chat.completions.create(**kwargs, **extra)
         except Exception as exc:
+            from waku.runtime.context import is_context_limit
+
+            if is_context_limit(exc):
+                raise
             m = str(exc).lower()
             if "max_completion_tokens" not in m and "max_tokens" not in m:
                 raise
@@ -390,6 +394,8 @@ class _OpenAIStream:
                     slot["name"] = tc.function.name
                 if tc.function and tc.function.arguments:
                     slot["args"] += tc.function.arguments
+                if getattr(tc, "extra_content", None):
+                    slot.setdefault("extra", {}).update(tc.extra_content)
 
     def get_final_message(self):
         blocks = []
@@ -399,7 +405,7 @@ class _OpenAIStream:
         for slot in self._tools.values():
             blocks.append(SimpleNamespace(
                 type="tool_use", id=slot["id"], name=slot["name"],
-                input=json.loads(slot["args"] or "{}")))
+                input=json.loads(slot["args"] or "{}"), extra=slot.get("extra", {})))
         usage = self._usage
         return SimpleNamespace(
             stop_reason="tool_use" if self._tools else "end_turn",

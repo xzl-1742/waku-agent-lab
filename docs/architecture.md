@@ -168,6 +168,35 @@ and a result reference. Reported text does not prove external action success. Re
 prompt history keeps these bounded observations; canonical records retain originals.
 V1 does not summarize history, remove raw data or guarantee exactly-once external actions.
 
+## Session checkpoints (V2)
+
+The opt-in `compact` policy replaces history eviction with a persisted task
+checkpoint. `runtime/checkpoints.py` groups canonical messages by turn and
+publishes a summary, source boundary and revision together. Concurrent or
+invalid replacements leave the previous revision intact. Original records and
+tool result files stay unchanged. Text-only legacy sessions are imported with
+their original chat-log row references; no tool identifiers are invented.
+
+`runtime/compaction.py` summarizes older turns in bounded batches using the
+main model, or a configured model on the same provider. Six structured fields
+hold goals, constraints, completed work, decisions, unresolved work and next
+steps. Each entry cites source message IDs. Large tool results retain bounded
+previews and saved-result references. Source hashes and per-call usage describe
+what each revision covered. Schema validation checks provenance, not semantic
+truth; real-model retention still needs quality evaluation.
+
+The request assembler reloads the checkpoint and remaining message groups from
+SQLite. It reads current rules again after compaction. Provider context errors
+allow one retry of a smaller model request, while the active tool sequence stays
+intact. Unknown execution outcomes stop the session with a reconciliation
+message. An oversized active turn or execution ledger may still exhaust the
+budget; V2 stops explicitly instead of repeating actions or discarding records.
+
+`/compact` uses the existing CLI, gateway and dashboard entry points. It does
+not add a conversation turn. The dashboard and gateway worker keep their
+existing serialization. Compaction events record starts, calls, completions and
+failures; missing provider usage stays unmeasured.
+
 ## What this deliberately is not
 
 Not a framework, not multi-agent, not production. (Still not multi-agent even with

@@ -23,7 +23,13 @@ from typing import Any
 
 import anthropic
 
-from waku.runtime.context import ContextBudget, TurnStopped, guard_client
+from waku.runtime.context import (
+    ContextBudget,
+    ContextOverflow,
+    TurnStopped,
+    guard_client,
+    is_context_limit,
+)
 from waku.tools.registry import ToolRegistry
 
 # Observers let the gateway show tool calls live and let ops/tracing record
@@ -51,6 +57,7 @@ def run_loop(
     stream: bool = False,
     budget: ContextBudget | None = None,
     records=None,
+    prepare_request=None,
 ) -> LoopResult:
     """Run one agent turn. `messages` is mutated in place and contains bounded
     working memory. When records are supplied, original assistant blocks and
@@ -67,6 +74,7 @@ def run_loop(
         budget = getattr(client, "context_budget", ContextBudget(main_model=model))
     client = guard_client(client, budget)
     can_stream = stream and hasattr(client.messages, "stream")
+    recovered = False
 
     for iteration in range(1, max_iterations + 1):
         result.iterations = iteration
@@ -75,29 +83,38 @@ def run_loop(
         response = None
         request = {"model": model, "system": system, "messages": messages,
                    "tools": tools.schemas(), "max_tokens": max_tokens}
-        if budget:
+        if prepare_request:
+            prepare_request(request)
+            system = request["system"]
+            messages[:] = request["messages"]
+            request["messages"] = messages
+        elif budget:
             notify("context", {**budget.fit(request), "stage": "assembly"})
-        if can_stream:
+        while True:
             try:
-                with client.messages.stream(
-                    model=model, system=system, messages=messages,
-                    tools=tools.schemas(), max_tokens=max_tokens,
-                ) as s:
-                    for delta in s.text_stream:
-                        notify("text", {"delta": delta})
-                    response = s.get_final_message()
-            except TurnStopped:
-                raise
-            except Exception:
-                response = None  # any streaming hiccup → fall back to one call
-        if response is None:
-            response = client.messages.create(
-                model=model,
-                system=system,
-                messages=messages,
-                tools=tools.schemas(),
-                max_tokens=max_tokens,
-            )
+                if can_stream:
+                    try:
+                        with client.messages.stream(**request) as s:
+                            for delta in s.text_stream:
+                                notify("text", {"delta": delta})
+                            response = s.get_final_message()
+                    except Exception as exc:
+                        if isinstance(exc, TurnStopped) or is_context_limit(exc):
+                            raise
+                        response = None
+                if response is None:
+                    response = client.messages.create(**request)
+                break
+            except Exception as exc:
+                if not is_context_limit(exc):
+                    raise
+                if recovered or prepare_request is None:
+                    raise ContextOverflow("Provider context limit reached. No tools were repeated.") from exc
+                recovered = True
+                prepare_request(request, recovery=True)
+                system = request["system"]
+                messages[:] = request["messages"]
+                request["messages"] = messages
         notify("llm", {"iteration": iteration, "stop_reason": response.stop_reason,
                        "usage": {"in": response.usage.input_tokens, "out": response.usage.output_tokens}})
 

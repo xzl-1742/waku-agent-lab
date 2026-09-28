@@ -92,7 +92,7 @@ class Session:
             if skills:
                 parts.append("\nRelevant skill instructions:\n" + skills)
 
-        if self.settings.context_policy == "budget":
+        if self.settings.context_policy in ("budget", "compact"):
             parts.append("\n" + RESULT_READ_RULE)
 
         return "\n".join(parts)

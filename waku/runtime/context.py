@@ -22,6 +22,22 @@ class ContextOverflow(TurnStopped):
     pass
 
 
+def is_context_limit(exc):
+    """Recognize provider context rejections without retrying unrelated failures."""
+    if isinstance(exc, ContextOverflow):
+        return True
+    status = getattr(exc, "status_code", None)
+    if status not in (400, 413, 422):
+        return False
+    body = getattr(exc, "body", None)
+    error = body.get("error", body) if isinstance(body, dict) else {}
+    code = error.get("code", getattr(exc, "code", "")) if isinstance(error, dict) else ""
+    if code in ("context_length_exceeded", "prompt_too_long", "input_too_long"):
+        return True
+    text = str(exc).lower()
+    return any(part in text for part in ("maximum context length", "prompt is too long", "exceeds the context window"))
+
+
 def plain(value):
     """Serialize a snapshot without replacing live provider content blocks."""
     if isinstance(value, dict):
@@ -87,6 +103,9 @@ class ContextBudget:
     margin: int = 1024
     capacity_source: str = "conservative_fallback"
     small_capacity_source: str = "conservative_fallback"
+    summary_model: str | None = None
+    summary_capacity: int = FALLBACK_CAPACITY
+    summary_capacity_source: str = "conservative_fallback"
     ratios: dict = field(default_factory=dict)
     _lock: RLock = field(default_factory=RLock, repr=False)
 
@@ -102,6 +121,12 @@ class ContextBudget:
             capacity_source="configured" if settings.context_window_tokens else "conservative_fallback",
             small_capacity_source=("configured" if settings.small_context_window_tokens
                                    else "conservative_fallback"),
+            summary_model=settings.compaction_model or settings.model,
+            summary_capacity=(settings.compaction_context_tokens or
+                              (settings.context_window_tokens if not settings.compaction_model else 0) or FALLBACK_CAPACITY),
+            summary_capacity_source=("configured" if settings.compaction_context_tokens or
+                                     (not settings.compaction_model and settings.context_window_tokens)
+                                     else "conservative_fallback"),
         )
 
     def measure(self, request):
@@ -111,6 +136,8 @@ class ContextBudget:
             choices.append((self.capacity, self.capacity_source))
         if model == self.small_model:
             choices.append((self.small_capacity, self.small_capacity_source))
+        if model == self.summary_model:
+            choices.append((self.summary_capacity, self.summary_capacity_source))
         capacity, source = min(choices) if choices else (FALLBACK_CAPACITY, "conservative_fallback")
         reserve = request.get("max_tokens", 0)
         with self._lock:

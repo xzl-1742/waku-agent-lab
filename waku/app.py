@@ -11,6 +11,8 @@ from waku.db import connect
 from waku.loop.agent import LoopResult, Observer, run_loop
 from waku.loop.models import get_client
 from waku.ops.tracing import Tracer, compose
+from waku.runtime.checkpoints import CheckpointStore
+from waku.runtime.compaction import CompactedRequest, Compactor
 from waku.runtime.context import ContextBudget, TurnStopped, guard_client
 from waku.runtime.records import ExecutionStore
 from waku.runtime.session import Session
@@ -37,6 +39,9 @@ class Waku:
         self.memory = Memory(self.conn, self.settings, self.client)
         self.session = Session(self.settings, memory=self.memory)
         self.records = ExecutionStore(self.conn, self.settings.home, self.settings.tool_output_bytes)
+        self.checkpoints = CheckpointStore(self.records)
+        self.compactor = (Compactor(self.settings, self.checkpoints, self.client, self.budget)
+                          if self.settings.context_policy == "compact" else None)
         reader = (lambda result_id, offset, limit: self.records.read(
             self.session.session_id, result_id, offset, limit)) if self.budget else None
         self.tools = build_registry(self.conn, self.settings, self.memory, result_reader=reader)
@@ -60,6 +65,10 @@ class Waku:
         # capture the gate + graph decisions as they flow by, so we can persist
         # them with the turn (the reopened-thread telemetry the dashboard shows)
         import time
+        command, _, arguments = user_message.strip().partition(" ")
+        if command.lower().split("@")[0] == "/compact":
+            return (LoopResult(reply="Use /compact without arguments.") if arguments
+                    else self.compact(observer=observer))
         captured: dict = {}
 
         def _capture(kind, ev):
@@ -82,6 +91,11 @@ class Waku:
             # fall back to the loop; terminal errors cannot replay side effects.
             result, stopped = None, False
             try:
+                if self.compactor:
+                    self.checkpoints.import_legacy(self.session.session_id)
+                    # Check interrupted executions before routing or any model
+                    # call, including quick replies and manual compaction.
+                    self.checkpoints.sources(self.session.session_id)
                 if self._turn_record:
                     self._turn_record.message("user", user_message)
                 if self.settings.graph_workflows:
@@ -149,7 +163,11 @@ class Waku:
         # input size under the budget policy. Original records stay in state.db.
         window = self.settings.history_turns * 2
         history = self.session.history[-window:] if window else []
+        if self.compactor:
+            history = []  # The request assembler reloads canonical records.
         messages = history + [{"role": "user", "content": user_message}]
+        context = (CompactedRequest(self.compactor, self.session.session_id,
+                                    self._turn_record.turn_id, system, notify) if self.compactor else None)
 
         return run_loop(
             client=self.client,
@@ -163,7 +181,23 @@ class Waku:
             stream=stream,
             budget=self.budget,
             records=self._turn_record,
+            prepare_request=context.prepare if context else None,
         )
+
+    def compact(self, observer=None) -> LoopResult:
+        """Compact the active session without adding a chat turn or running tools."""
+        if not self.compactor:
+            return LoopResult(reply="Session compaction requires WAKU_CONTEXT_POLICY=compact.")
+        notify = compose(observer, self.tracer.event)
+        self.client.notify = notify
+        try:
+            self.checkpoints.import_legacy(self.session.session_id)
+            checkpoint = self.compactor.compact(self.session.session_id, notify=notify)
+            reply = (f"Saved session checkpoint {checkpoint['revision']} through message {checkpoint['covered_through']}."
+                     if checkpoint else "No older complete turns need compaction.")
+        except TurnStopped as exc:
+            reply = str(exc)
+        return LoopResult(reply=reply)
 
     def _respond_via_graph(self, user_message: str, notify, stream: bool) -> LoopResult | None:
         """Run the triage graph. An empty pre-action result may fall back;

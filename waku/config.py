@@ -84,6 +84,11 @@ class Settings:
     small_context_window_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_SMALL_CONTEXT_WINDOW", "0")))
     context_safety_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_CONTEXT_SAFETY", "1024")))
     tool_output_bytes: int = field(default_factory=lambda: int(os.getenv("WAKU_TOOL_OUTPUT_BYTES", "4096")))
+    compaction_model: str = field(default_factory=lambda: os.getenv("WAKU_COMPACTION_MODEL", ""))
+    compaction_context_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_COMPACTION_CONTEXT", "0")))
+    compaction_max_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_COMPACTION_MAX_TOKENS", "2048")))
+    compaction_keep_turns: int = field(default_factory=lambda: int(os.getenv("WAKU_COMPACTION_KEEP_TURNS", "4")))
+    compaction_max_calls: int = field(default_factory=lambda: int(os.getenv("WAKU_COMPACTION_MAX_CALLS", "32")))
 
     # --- Memory
     # Consolidate (distill chats into durable facts) only after N new exchanges.
@@ -153,8 +158,12 @@ class Settings:
     def __post_init__(self) -> None:
         if self.history_turns < 0:
             raise ValueError("history_turns must be non-negative (zero disables prior history)")
-        if self.context_policy not in ("budget", "window"):
-            raise ValueError("context_policy must be 'budget' or 'window'")
+        if self.context_policy not in ("budget", "window", "compact"):
+            raise ValueError("context_policy must be 'budget', 'window' or 'compact'")
+        if self.compaction_context_tokens < 0 or self.compaction_keep_turns < 0:
+            raise ValueError("compaction capacity and retained turns must be non-negative")
+        if min(self.compaction_max_tokens, self.compaction_max_calls) < 1:
+            raise ValueError("compaction output and call limits must be positive")
         if min(self.context_window_tokens, self.small_context_window_tokens, self.context_safety_tokens) < 0:
             raise ValueError("context capacities and safety margin must be non-negative")
         if self.max_tokens <= 0:
