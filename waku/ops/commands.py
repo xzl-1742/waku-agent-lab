@@ -74,6 +74,7 @@ def describe() -> str:
         lines.append(f"`/{name}` — {summary}" if summary else f"`/{name}`")
     lines += [
         "",
+        "`/compact` saves a task checkpoint for the active chat when the compact context policy is enabled.",
         ("`triage` is the ROUTER — it also runs itself on every message when "
          "graph workflows are on, so calling it by name just lets you watch one "
          "message choose a door. The others are procedures: they only run when "
@@ -126,4 +127,4 @@ def run(name: str, emit, arg: str = "") -> dict | None:
 def unknown_reply(name: str) -> str:
     known = sorted(discover())
     listed = ", ".join(f"`/{k}`" for k in known) or "(none installed)"
-    return f"No workflow called `/{name}`.\n\nAvailable: {listed} · `/graphs` for details."
+    return f"No workflow called `/{name}`.\n\nAvailable: {listed}, `/compact` · `/graphs` for details."

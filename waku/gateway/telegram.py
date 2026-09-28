@@ -58,7 +58,7 @@ def _build_app(token: str, allowed: str = "", runner: GatewayAgentRunner | None 
     same way."""
     allowed_ids = _allowed_ids() | ({allowed.strip()} if allowed.strip() else set())
     from telegram import Update
-    from telegram.ext import Application, ContextTypes, MessageHandler, filters
+    from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
     runner = runner or _new_runner()
 
@@ -70,6 +70,7 @@ def _build_app(token: str, allowed: str = "", runner: GatewayAgentRunner | None 
 
     app = Application.builder().token(token).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.add_handler(CommandHandler("compact", handle))
     return app
 
 

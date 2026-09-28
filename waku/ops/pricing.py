@@ -152,13 +152,14 @@ def usage_summary(home) -> dict:
     def cost(r) -> float:
         # the ledger stores tokens + provider/model, so old rows reprice too
         pin, pout = price_for(r.get("provider", ""), r.get("model", ""))
-        return r.get("in", 0) / 1e6 * pin + r.get("out", 0) / 1e6 * pout
+        return (r.get("in") or 0) / 1e6 * pin + (r.get("out") or 0) / 1e6 * pout
 
     def add(bucket, key, extra):
-        b = bucket.setdefault(key, {**extra, "calls": 0, "in": 0, "out": 0, "cost": 0.0})
+        b = bucket.setdefault(key, {**extra, "calls": 0, "in": 0, "out": 0, "cost": 0.0, "unmeasured_calls": 0})
         b["calls"] += 1
-        b["in"] += r.get("in", 0)
-        b["out"] += r.get("out", 0)
+        b["in"] += r.get("in") or 0
+        b["out"] += r.get("out") or 0
+        b["unmeasured_calls"] += r.get("in") is None or r.get("out") is None
         b["cost"] += cost(r)
 
     by_day, by_provider = {}, {}
@@ -169,8 +170,9 @@ def usage_summary(home) -> dict:
 
     return {
         "calls": len(recs),
-        "total_in": sum(r.get("in", 0) for r in recs),
-        "total_out": sum(r.get("out", 0) for r in recs),
+        "total_in": sum(r.get("in") or 0 for r in recs),
+        "total_out": sum(r.get("out") or 0 for r in recs),
+        "unmeasured_calls": sum(r.get("in") is None or r.get("out") is None for r in recs),
         "total_cost": round(sum(cost(r) for r in recs), 4),
         "by_day": sorted(by_day.values(), key=lambda x: x["date"], reverse=True)[:30],
         "by_provider": sorted(by_provider.values(), key=lambda x: -x["cost"]),

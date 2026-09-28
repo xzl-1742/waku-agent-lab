@@ -278,6 +278,7 @@ def test_telegram_handler_uses_runner_and_returns_safe_error(monkeypatch):
         Application=application,
         ContextTypes=SimpleNamespace(DEFAULT_TYPE=object),
         MessageHandler=MessageHandler,
+        CommandHandler=MessageHandler,
         filters=SimpleNamespace(TEXT=Filter(), COMMAND=Filter()),
     ))
 
@@ -293,6 +294,7 @@ def test_telegram_handler_uses_runner_and_returns_safe_error(monkeypatch):
 
     runner = GatewayAgentRunner(Agent, session_id="telegram", source="telegram")
     telegram_gateway._build_app("fake-token", runner=runner)
+    assert len(callbacks) == 2  # Text and /compact share authorization and the worker.
     sent = []
 
     async def reply_text(text):

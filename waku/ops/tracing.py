@@ -123,6 +123,18 @@ class Tracer:
             # live model switching) a trace without the model is half a trace
             event = {"provider": self.settings.provider,
                      "model": self.settings.model or "", **event}
+        if kind == "compaction_call":
+            # Missing provider usage remains null; a scripted call is not free
+            # measured inference. Keep cache fields and request provenance.
+            record = {"ts": _now(), "provider": self.settings.provider,
+                      "kind": "compaction", "model": event["model"],
+                      "in": event.get("input_tokens"), "out": event.get("output_tokens"),
+                      "usage_source": event["usage_source"],
+                      "request_sha256": event["request_sha256"],
+                      "cache_read_input_tokens": event.get("cache_read_input_tokens"),
+                      "cache_creation_input_tokens": event.get("cache_creation_input_tokens")}
+            with (self.settings.home / "usage.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record) + "\n")
         self._write({"type": kind, **event})
         if self._otel_tracer and self._span_ctx is not None:
             with self._otel_tracer.start_as_current_span(

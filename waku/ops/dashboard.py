@@ -181,6 +181,14 @@ def _run_command(command: tuple[str, str], emit) -> None:
     """
     name, arg = command
     start = datetime.now(UTC)
+    if name == "compact":
+        with agent_lock:
+            agent = get_agent()
+            result = agent.compact(observer=emit) if not arg else None
+        emit("done", {"reply": result.reply if result else "Use /compact without arguments.",
+                      "tools": [], "iterations": 0, "gate": None,
+                      "latency_ms": int((datetime.now(UTC) - start).total_seconds() * 1000)})
+        return
     if name == "connect":
         # Signing in opens YOUR browser and waits for you to click Allow. The
         # dashboard runs on your machine, so it does that in-process: no shell,
