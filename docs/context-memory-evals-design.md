@@ -6,7 +6,8 @@ These labels identify development milestones; they do not change the package ver
 
 The proposal was approved for V0 implementation on 2026-09-27. Performance targets have not been measured.
 V0 implementation and offline verification are complete; [the baseline report](v0-baseline.md) records the results and unmeasured live quality.
-V1 through V5 remain planned work, subject to the architecture review described in [conventions section 2](context/conventions.md#2-how-much-process-a-change-needs).
+V1 implementation was approved on 2026-09-28. V2 through V5 remain planned work,
+subject to the architecture review described in [conventions section 2](context/conventions.md#2-how-much-process-a-change-needs).
 
 ## 1. Outcomes and current evidence
 
@@ -133,6 +134,35 @@ V1 bounds each model request and records action results without using LLM summar
 - Short conversations keep the established behavior and require no additional summarization call.
 
 V1 bounds input size, but it may still omit older task details. V2 addresses that loss.
+
+### V1 implementation decisions
+
+The `budget` policy is enabled by default; `window` retains configuration A for
+comparison. An explicit main/small-model capacity overrides a conservative 32,768
+token fallback. The fallback describes Waku's policy, not a verified provider limit.
+Every request reserves its actual output allowance plus a configurable margin.
+The dependency-free estimator counts UTF-8 JSON bytes plus framing overhead and
+labels that count as an estimate. Observed usage can increase its calibration;
+missing or synthetic usage cannot decrease the budget. Live calibration is unmeasured.
+
+A shared client guard covers streaming, graph, gate and consolidation calls made
+through Waku. The main loop can remove complete old exchanges and reduce tool
+observations; direct helper calls fail before dispatch when they cannot fit.
+The current user request, instructions and active tool-call/result groups stay
+intact. A terminal budget or recording error must never trigger graph replay.
+
+Two additive tables retain canonical messages and tool execution records alongside
+the existing chat log. Each execution is recorded pending before the tool runs;
+pending after interruption means unknown outcome, not permission to repeat it.
+Full outputs use generated result IDs under the agent home. The existing
+`manage_memory` tool gains a session-scoped `read_result` action with bounded
+pagination. Oversized observations retain an excerpt, result reference, execution
+state and selected outcome fields; free-form tool text is not proof of success.
+Prompt history uses bounded observations while canonical records retain originals.
+
+V1 tests compare A and B on the frozen V0 bank, with separate stress tests for
+oversized inputs, multi-tool batches, Unicode, streaming, persistence failures and
+session access. Scripted quality and token cost remain unmeasured.
 
 ## 6. V2: compact and resume conversations
 
