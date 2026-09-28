@@ -33,6 +33,16 @@ Durable message/tool records and session-scoped result reads preserve original
 outputs. Local scripted latency increased; real token cost and model quality are
 unmeasured. See [the V1 report](v1-baseline.md).
 
+**V2 adds opt-in session compaction.** `WAKU_CONTEXT_POLICY=compact` stores
+canonical message groups, complete tool receipts and revisioned task
+checkpoints. The compactor keeps recent turns, cites source message IDs in six
+summary fields, reloads current rules after restart, and makes one bounded
+recovery attempt after a provider context rejection. `/compact` works through
+the existing CLI, dashboard and Telegram command paths. The deterministic B2
+scenarios exercise source retention and request limits; real-model retention
+quality and cost remain unmeasured. `budget` remains the default while V2 is
+being evaluated. See [the V2 design](context-memory-evals-design.md).
+
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.
 

@@ -62,6 +62,28 @@ def test_large_tool_scenario_reduces_estimated_input_without_extra_model_calls(t
     assert b["estimated_input_tokens_peak"] < a["estimated_input_tokens_peak"]
 
 
+@pytest.mark.parametrize("case", CASES, ids=lambda case: case["id"])
+def test_compaction_configuration_preserves_sources_within_budget(case, tmp_path):
+    result = run_case(case, tmp_path / "home", configuration="B2")
+    assert result["status"] == "complete", result
+    assert all(call["estimated_input_tokens"] + call["max_tokens"] + 1024 <= 32768 for call in result["calls"])
+    if case["family"] in ("constraints", "tools", "isolation"):
+        assert result["evidence_probes"]["current_fact_in_final_input"], result
+    assert result["quality_status"] == "incomplete"
+    assert result["cost_usd"] is None
+
+
+def test_scripted_summary_uses_only_received_evidence():
+    from evals.context.summary import summarize
+    from waku.runtime.checkpoints import FIELDS
+
+    payload = {"previous_summary": {field: [] for field in FIELDS},
+               "sources": [{"source_id": 9, "role": "user", "text": '"Keep this constraint: port 1234"'}]}
+    result = json.loads(summarize(payload))
+    assert result["constraints"] == [{"text": "Keep this constraint: port 1234", "source_ids": [9]}]
+    assert "9999" not in json.dumps(result)
+
+
 def test_unknown_fixture_schema_and_family_fail_loudly(tmp_path):
     data = json.loads(FIXTURES.read_text(encoding="utf-8"))
     path = tmp_path / "cases.json"

@@ -61,6 +61,10 @@ class ScenarioClient:
             text = json.dumps({"retrieve": bool(query), "query": query, "reason": "fixture"})
         elif stage == "consolidation":
             text = '{"facts": [], "episode": ""}'
+        elif stage == "compaction":
+            from evals.context.summary import summarize
+
+            text = summarize(json.loads(kwargs["messages"][0]["content"]))
         else:
             raise ValueError("Unknown model call in scripted baseline")
         return response([text_block(text)])
@@ -74,7 +78,7 @@ def build_app(home, client, tool_calls, output_kib, configuration="A", capacity=
                     small_model="scripted-small", history_turns=12, consolidate_every=6,
                     retrieval_top_k=4, max_iterations=10, max_tokens=8192,
                     semantic_store="sqlite", episodic_store="sqlite",
-                    context_policy="window" if configuration == "A" else "budget",
+                    context_policy={"A": "window", "B": "budget", "B2": "compact"}[configuration],
                     context_window_tokens=capacity, small_context_window_tokens=capacity,
                     experimental=False, gh_tool=False)
     app.conn.execute("CREATE TABLE IF NOT EXISTS eval_actions (receipt TEXT NOT NULL)")
@@ -100,8 +104,8 @@ def run_case(case, home, configuration="A", capacity=32768):
         Path(os.environ["WAKU_EVAL_ROOT"]).resolve()
     ):
         raise RuntimeError("Run context baselines through the offline isolation bootstrap")
-    if configuration not in ("A", "B"):
-        raise ValueError("Only configurations A and B are implemented")
+    if configuration not in ("A", "B", "B2"):
+        raise ValueError("Only configurations A, B and B2 are implemented")
     script = ScenarioClient()
     client = RecordingClient(script, synthetic=True)
     tool_calls, turn_seconds, checks = [], [], []
@@ -112,7 +116,7 @@ def run_case(case, home, configuration="A", capacity=32768):
     final_input, errors, context_events = "", [], []
 
     def observe(kind, event):
-        if kind in ("context", "context_error"):
+        if kind in ("context", "context_error") or kind.startswith("compaction_"):
             context_events.append({"kind": kind, **event})
     try:
         with patch("datetime.datetime", FixedDatetime):
@@ -151,7 +155,7 @@ def run_case(case, home, configuration="A", capacity=32768):
             {"name": "session_transcript_isolation",
              "passed": "OTHER_SESSION_SENTINEL" not in final_input},
         ]
-        if configuration == "B":
+        if configuration in ("B", "B2"):
             executions = app.conn.execute("SELECT * FROM tool_executions").fetchall()
             checks.extend([
                 {"name": "request_budgets", "passed": all(
@@ -179,7 +183,7 @@ def run_case(case, home, configuration="A", capacity=32768):
         "usage_source": "synthetic", "model_calls": len(client.calls),
         "calls_by_stage": dict(Counter(c["stage"] for c in client.calls)),
         "stage_seconds": {stage: sum(c["duration_seconds"] for c in client.calls if c["stage"] == stage)
-                          for stage in ("gate", "answer", "consolidation")},
+                          for stage in ("gate", "answer", "consolidation", "compaction")},
         "tool_seconds": sum(c["duration_seconds"] for c in tool_calls),
         "duration_seconds": elapsed, "turn_seconds": turn_seconds,
         "calls": client.calls, "tool_calls": tool_calls,
@@ -225,7 +229,7 @@ def make_report(cases, root, configuration="A", capacity=32768):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", choices=["development", "reserved", "all"], default="development")
-    parser.add_argument("--configuration", choices=["A", "B"], default="A")
+    parser.add_argument("--configuration", choices=["A", "B", "B2"], default="A")
     parser.add_argument("--capacity", type=int, default=32768)
     parser.add_argument("--output", type=Path, default=Path("eval-results/context-v0.json"))
     args = parser.parse_args(argv)

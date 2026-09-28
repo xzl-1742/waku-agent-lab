@@ -7,8 +7,10 @@ These labels identify development milestones; they do not change the package ver
 The proposal was approved for V0 implementation on 2026-09-27. Performance targets have not been measured.
 V0 implementation and offline verification are complete; [the baseline report](v0-baseline.md) records the results and unmeasured live quality.
 V1 implementation was approved on 2026-09-28; [the V1 report](v1-baseline.md) records
-the implemented behavior and frozen A/B results. V2 through V5 remain planned work,
-subject to the architecture review described in [conventions section 2](context/conventions.md#2-how-much-process-a-change-needs).
+the implemented behavior and frozen A/B results. V2 now implements opt-in
+session compaction and offline B2 comparisons. Live summary quality remains
+unmeasured. V3 through V5 remain planned work, subject to the architecture
+review described in [conventions section 2](context/conventions.md#2-how-much-process-a-change-needs).
 
 ## 1. Outcomes and current evidence
 

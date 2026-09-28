@@ -176,6 +176,8 @@ publishes a summary, source boundary and revision together. Concurrent or
 invalid replacements leave the previous revision intact. Original records and
 tool result files stay unchanged. Text-only legacy sessions are imported with
 their original chat-log row references; no tool identifiers are invented.
+Sessions mixing unlinked legacy exchanges with structured turns require a new
+compact session or the budget policy; V2 does not guess how to merge them.
 
 `runtime/compaction.py` summarizes older turns in bounded batches using the
 main model, or a configured model on the same provider. Six structured fields

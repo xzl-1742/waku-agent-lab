@@ -27,6 +27,22 @@ targets are aliases for the same things, plus the eval and tracing tools.
 In the dashboard chat, `/connect google` and `/connect waku-memory` do the same
 as their `waku connect` commands, and `/help` lists the graph workflows.
 
+`/compact` saves a task checkpoint for the active conversation in the terminal,
+dashboard or Telegram. Set `WAKU_CONTEXT_POLICY=compact` before starting Waku.
+The default `budget` policy keeps V1 behavior. Compaction uses the main model
+unless `WAKU_COMPACTION_MODEL` names another model on the same provider.
+`WAKU_COMPACTION_CONTEXT` sets its verified capacity; zero uses the main model
+capacity when the model is inherited, otherwise the conservative fallback.
+`WAKU_COMPACTION_KEEP_TURNS` defaults to 4, `WAKU_COMPACTION_MAX_TOKENS` to
+2048 and `WAKU_COMPACTION_MAX_CALLS` to 32. A manual command does not add a
+chat turn or run tools. It uses the same provider credentials as ordinary chat.
+
+The compactor summarizes older complete turns when history exceeds
+`WAKU_HISTORY_TURNS` or a request exceeds its budget. It retains recent groups
+when space permits and always preserves the active turn. `WAKU_HISTORY_TURNS=0`
+excludes prior conversation from answer requests. Failed summaries keep old
+checkpoints and raw records. Interrupted executions require reconciliation.
+
 ## make
 
 | Command | Does |

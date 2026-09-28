@@ -74,13 +74,14 @@ separate work. The existing live judge suite is enabled only by an explicit comm
 The reference snapshot pins Pi to a commit and stores short paraphrases of the
 official Claude Code documentation in `evals/context/references.json`.
 
-## Context budgets and A/B comparisons (V1)
+## Context budgets and A/B comparisons (V1 and V2)
 
 Run both policies against the same frozen data:
 
 ```bash
 python -m evals.context.runner --configuration A --split all --output eval-results/context-v1-A.json
 python -m evals.context.runner --configuration B --split all --output eval-results/context-v1-B.json
+python -m evals.context.runner --configuration B2 --split all --output eval-results/context-v2-B2.json
 ```
 
 Both runs use a 32,768-token test capacity, 8,192 output reserve and 1,024 safety
@@ -90,7 +91,10 @@ pairing checks, recoverable artifact checks and source manifests. Estimate total
 include answer, gate and consolidation calls. A budget violation in A means its
 estimated request would exceed B's configured budget, not a measured provider rejection.
 B can reject an oversized helper request without dispatching it; rejected requests
-remain visible in the report. No added summarizer is used.
+remain visible in the report. B2 enables session compaction with an
+evidence-only scripted summary. All three policies use the same frozen
+fixtures. B2 reports include compaction calls, timing and prompt hashes;
+real-model retention and cost remain unmeasured.
 
 For normal Waku use, `WAKU_CONTEXT_POLICY=budget` is the default. `window` restores
 the original comparison policy. `WAKU_CONTEXT_WINDOW` and `WAKU_SMALL_CONTEXT_WINDOW`
