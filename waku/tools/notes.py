@@ -12,13 +12,12 @@ import sqlite3
 from waku.tools.registry import Tool
 
 
-def make_tool(conn: sqlite3.Connection) -> Tool:
+def make_tool(conn: sqlite3.Connection, memory=None) -> Tool:
+    from waku.memory.semantic.store import SqliteFactStore
+
     def save_note(subject: str, content: str) -> str:
-        conn.execute(
-            "INSERT INTO facts (subject, content, source) VALUES (?,?,'user')",
-            (subject.lower().strip(), content),
-        )
-        conn.commit()
+        store = memory.facts if memory is not None else SqliteFactStore(conn)
+        store.add(subject, content, source="user")
         return f"Saved to memory under '{subject}': {content}"
 
     return Tool(

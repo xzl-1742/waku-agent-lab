@@ -26,7 +26,7 @@ def make_manage_memory_tool(memory, result_reader=None) -> Tool:
     facts = memory.facts
     episodes = memory.episodes
 
-    def manage_memory(action: str, kind: str = "fact", id: int = 0,
+    def manage_memory(action: str, kind: str = "fact", id: int | str = 0,
                       query: str = "", content: str = "", subject: str = "",
                       result_id: str = "", offset: int = 0, limit: int = 1024) -> str:
         action = (action or "").lower()
@@ -53,14 +53,12 @@ def make_manage_memory_tool(memory, result_reader=None) -> Tool:
         if action == "update":
             if kind != "fact":
                 return "Only facts can be updated (episodes are historical)."
-            ok = facts.update(int(id), content, subject or None)
+            ok = facts.update(id, content, subject or None)
             return f"Updated fact #{id}." if ok else f"No fact with id {id}."
         if action == "delete":
             if kind == "episode":
-                # sqlite ids are ints; notion page ids are UUID strings — coerce by shape.
-                rid = int(id) if str(id).isdigit() else str(id)
-                return f"Deleted episode #{id}." if episodes.delete(rid) else f"No episode with id {id}."
-            return f"Deleted fact #{id}." if facts.delete(int(id)) else f"No fact with id {id}."
+                return f"Deleted episode #{id}." if episodes.delete(id) else f"No episode with id {id}."
+            return f"Deleted fact #{id}." if facts.delete(id) else f"No fact with id {id}."
         return "action must be one of: search, update, delete, read_result"
 
     return Tool(
