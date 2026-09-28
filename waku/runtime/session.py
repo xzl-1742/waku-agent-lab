@@ -85,6 +85,11 @@ class Session:
             if skills:
                 parts.append("\nRelevant skill instructions:\n" + skills)
 
+        if self.settings.context_policy == "budget":
+            parts.append("\nSaved tool results may be read using manage_memory read_result. "
+                         "Multiple read_result pages are allowed; never rerun the original action "
+                         "to retrieve its output. A pending execution has an unknown outcome.")
+
         return "\n".join(parts)
 
     def add_exchange(self, user_message: str, reply: str, tool_calls: list | None = None,

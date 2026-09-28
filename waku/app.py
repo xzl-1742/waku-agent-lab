@@ -11,6 +11,8 @@ from waku.db import connect
 from waku.loop.agent import LoopResult, Observer, run_loop
 from waku.loop.models import get_client
 from waku.ops.tracing import Tracer, compose
+from waku.runtime.context import ContextBudget, TurnStopped, guard_client
+from waku.runtime.records import ExecutionStore
 from waku.runtime.session import Session
 from waku.tools import build_registry
 
@@ -23,14 +25,23 @@ class Waku:
         self.settings.ensure_home()
         self.conn = conn or connect(self.settings.home)
         self.client = client or get_client(self.settings)
+        self.budget = ContextBudget.from_settings(self.settings)
+        self.client = guard_client(self.client, self.budget)
+        if self.budget is None:
+            # An explicit opt-out propagates into run_loop for baseline A.
+            self.client.context_budget = None
 
         # Memory first: the memory-management tools need it.
         from waku.memory import Memory
 
         self.memory = Memory(self.conn, self.settings, self.client)
-        self.tools = build_registry(self.conn, self.settings, self.memory)
-        self.mcp_bridge = getattr(self.tools, "mcp_bridge", None)
         self.session = Session(self.settings, memory=self.memory)
+        self.records = ExecutionStore(self.conn, self.settings.home, self.settings.tool_output_bytes)
+        reader = (lambda result_id, offset, limit: self.records.read(
+            self.session.session_id, result_id, offset, limit)) if self.budget else None
+        self.tools = build_registry(self.conn, self.settings, self.memory, result_reader=reader)
+        self.mcp_bridge = getattr(self.tools, "mcp_bridge", None)
+        self._turn_record = None
         self.tracer = Tracer(self.settings)
 
     def close(self) -> None:
@@ -62,22 +73,42 @@ class Waku:
                 captured["graph_path"] = ev.get("path")
         notify = compose(observer, self.tracer.event, _capture)
         t0 = time.perf_counter()
+        if self.budget:
+            self.client.notify = notify
+        self._turn_record = self.records.turn(self.session.session_id, source) if self.budget else None
 
         with self.tracer.turn(user_message):
             # The graph front door is optional and can NEVER make Waku worse:
             # flag off → this is exactly the old code path; flag on → the triage
             # graph decides quick vs full, and any failure anywhere falls open
             # to the plain loop below (same fail-open rule as the retrieval gate).
-            result = None
-            if self.settings.graph_workflows:
-                try:
-                    result = self._respond_via_graph(user_message, notify, stream)
-                except Exception as exc:
-                    notify("graph_end", {"workflow": "triage", "ms": 0, "steps": 0,
-                                         "path": [], "error": repr(exc)})
-                    result = None
-            if result is None:
-                result = self._run_full_turn(user_message, notify, stream)
+            result, stopped = None, False
+            try:
+                if self._turn_record:
+                    self._turn_record.message("user", user_message)
+                if self.settings.graph_workflows:
+                    try:
+                        result = self._respond_via_graph(user_message, notify, stream)
+                    except TurnStopped:
+                        raise
+                    except Exception as exc:
+                        notify("graph_end", {"workflow": "triage", "ms": 0, "steps": 0,
+                                             "path": [], "error": repr(exc)})
+                        # Once a tool started, falling back can duplicate its effect.
+                        if self._turn_record and self.conn.execute(
+                            "SELECT 1 FROM tool_executions WHERE turn_id=? LIMIT 1",
+                            (self._turn_record.turn_id,),
+                        ).fetchone():
+                            raise TurnStopped("Workflow stopped after tool execution; no action was repeated.") from exc
+                if result is None:
+                    result = self._run_full_turn(user_message, notify, stream)
+                if self._turn_record and self._turn_record.position == 1:
+                    self._turn_record.message("assistant", result.reply)
+            except TurnStopped as exc:
+                stopped = True
+                result = LoopResult(reply=str(exc), tool_calls=(self._turn_record.tool_calls
+                                                               if self._turn_record else []))
+                notify("context_error", {"error": str(exc)})
 
             quick = captured.get("graph_route", {}).get("target") == "quick_reply"
 
@@ -104,7 +135,7 @@ class Waku:
             }
             self.session.add_exchange(user_message, result.reply, tool_calls=result.tool_calls,
                                       source=source, meta=meta)
-            if self.memory is not None:
+            if self.memory is not None and not stopped:
                 self.memory.maybe_consolidate(notify=notify)
                 self.memory.export_markdown()   # keep MEMORY.md in sync
 
@@ -134,6 +165,8 @@ class Waku:
             max_tokens=self.settings.max_tokens,
             observer=notify,
             stream=stream,
+            budget=self.budget,
+            records=self._turn_record,
         )
 
     def _respond_via_graph(self, user_message: str, notify, stream: bool) -> LoopResult | None:
@@ -170,4 +203,9 @@ class Waku:
             return state["result"]
         if state.get("reply"):
             return LoopResult(reply=state["reply"], tool_calls=[], iterations=1)
+        if self._turn_record and self.conn.execute(
+            "SELECT 1 FROM tool_executions WHERE turn_id=? LIMIT 1",
+            (self._turn_record.turn_id,),
+        ).fetchone():
+            raise TurnStopped("Workflow stopped after tool execution; no action was repeated.")
         return None  # graph produced nothing → caller falls open to the loop

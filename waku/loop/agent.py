@@ -23,6 +23,7 @@ from typing import Any
 
 import anthropic
 
+from waku.runtime.context import ContextBudget, TurnStopped, guard_client
 from waku.tools.registry import ToolRegistry
 
 # Observers let the gateway show tool calls live and let ops/tracing record
@@ -48,6 +49,8 @@ def run_loop(
     max_tokens: int = 2048,
     observer: Observer | None = None,
     stream: bool = False,
+    budget: ContextBudget | None = None,
+    records=None,
 ) -> LoopResult:
     """Run one agent turn. `messages` is mutated in place — after the call it
     contains the full working memory of the turn (assistant thoughts, tool
@@ -58,6 +61,11 @@ def run_loop(
     the dashboard. Falls back to a single call for clients without streaming."""
     notify = observer or (lambda kind, ev: None)
     result = LoopResult(reply="")
+    # Standalone graph/loop callers also receive a conservative dispatch guard.
+    # Passing a window-policy client explicitly opts out for baseline A.
+    if budget is None:
+        budget = getattr(client, "context_budget", ContextBudget(main_model=model))
+    client = guard_client(client, budget)
     can_stream = stream and hasattr(client.messages, "stream")
 
     for iteration in range(1, max_iterations + 1):
@@ -65,6 +73,10 @@ def run_loop(
 
         # ---- reason: one LLM call with the current working memory
         response = None
+        request = {"model": model, "system": system, "messages": messages,
+                   "tools": tools.schemas(), "max_tokens": max_tokens}
+        if budget:
+            notify("context", {**budget.fit(request), "stage": "assembly"})
         if can_stream:
             try:
                 with client.messages.stream(
@@ -74,6 +86,8 @@ def run_loop(
                     for delta in s.text_stream:
                         notify("text", {"delta": delta})
                     response = s.get_final_message()
+            except TurnStopped:
+                raise
             except Exception:
                 response = None  # any streaming hiccup → fall back to one call
         if response is None:
@@ -89,6 +103,8 @@ def run_loop(
 
         # the assistant's turn (text and/or tool requests) joins working memory
         messages.append({"role": "assistant", "content": response.content})
+        if records:
+            records.message("assistant", response.content)
 
         tool_uses = [b for b in response.content if b.type == "tool_use"]
 
@@ -99,15 +115,24 @@ def run_loop(
 
         # ---- act: execute each requested tool; observe: feed results back
         tool_results = []
+        originals = []
         for call in tool_uses:
+            result_id = records.begin(call.id, call.name, call.input) if records else None
             output = tools.execute(call.name, call.input, notify=notify)
-            event = {"tool": call.name, "args": call.input, "output": output}
+            visible = records.finish(result_id, output) if records else output
+            event = {"tool": call.name, "args": call.input, "output": visible}
+            if records:
+                event.update(call_id=call.id, result_id=result_id)
+                records.tool_calls.append(event)
             result.tool_calls.append(event)
             notify("tool", event)
             tool_results.append(
-                {"type": "tool_result", "tool_use_id": call.id, "content": output}
+                {"type": "tool_result", "tool_use_id": call.id, "content": visible}
             )
+            originals.append({"type": "tool_result", "tool_use_id": call.id, "content": output})
         messages.append({"role": "user", "content": tool_results})
+        if records:
+            records.message("user", originals)
 
     # ---- guardrail 2: ran out of iterations
     result.reply = "(I hit my iteration limit before finishing — try breaking the request into smaller steps.)"

@@ -11,7 +11,7 @@ from waku.tools import calendar, memory_admin, messages, notes, search
 from waku.tools.registry import ToolRegistry
 
 
-def build_registry(conn: sqlite3.Connection, settings: Settings, memory=None) -> ToolRegistry:
+def build_registry(conn: sqlite3.Connection, settings: Settings, memory=None, result_reader=None) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(
         calendar.make_tool(
@@ -35,7 +35,7 @@ def build_registry(conn: sqlite3.Connection, settings: Settings, memory=None) ->
     # Memory self-management — the agent can correct/forget memory, learn rules,
     # and author its own skills (feels like a personal agent, not a black box).
     if memory is not None:
-        registry.register(memory_admin.make_manage_memory_tool(memory))
+        registry.register(memory_admin.make_manage_memory_tool(memory, result_reader=result_reader))
         registry.register(memory_admin.make_update_soul_tool(settings))
         registry.register(memory_admin.make_create_skill_tool(settings, memory))
 

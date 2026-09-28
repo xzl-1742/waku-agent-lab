@@ -252,14 +252,17 @@ class OpenAICompatClient:
                 oai_messages.append({"role": message["role"], "content": content})
             elif message["role"] == "assistant":
                 # anthropic content blocks → assistant text + tool_calls
-                text = "".join(b.text for b in content if getattr(b, "type", "") == "text")
+                from waku.runtime.context import plain
+
+                blocks = plain(content)
+                text = "".join(b["text"] for b in blocks if b.get("type") == "text")
                 calls = []
-                for b in content:
-                    if getattr(b, "type", "") != "tool_use":
+                for b in blocks:
+                    if b.get("type") != "tool_use":
                         continue
-                    call = {"id": b.id, "type": "function",
-                            "function": {"name": b.name, "arguments": json.dumps(b.input)}}
-                    extra = getattr(b, "extra", None)   # Gemini thought_signature
+                    call = {"id": b["id"], "type": "function",
+                            "function": {"name": b["name"], "arguments": json.dumps(b["input"])}}
+                    extra = b.get("extra")   # Gemini thought_signature
                     if extra:
                         call["extra_content"] = extra
                     calls.append(call)
@@ -334,6 +337,7 @@ class OpenAICompatClient:
             usage=SimpleNamespace(
                 input_tokens=getattr(usage, "prompt_tokens", 0),
                 output_tokens=getattr(usage, "completion_tokens", 0),
+                measured=usage is not None and getattr(usage, "prompt_tokens", None) is not None,
             ),
             content=blocks,
         )
@@ -401,6 +405,7 @@ class _OpenAIStream:
             stop_reason="tool_use" if self._tools else "end_turn",
             usage=SimpleNamespace(
                 input_tokens=getattr(usage, "prompt_tokens", 0),
-                output_tokens=getattr(usage, "completion_tokens", 0)),
+                output_tokens=getattr(usage, "completion_tokens", 0),
+                measured=usage is not None and getattr(usage, "prompt_tokens", None) is not None),
             content=blocks,
         )

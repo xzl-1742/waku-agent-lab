@@ -22,13 +22,18 @@ SOUL_MAX = 8000
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 
 
-def make_manage_memory_tool(memory) -> Tool:
+def make_manage_memory_tool(memory, result_reader=None) -> Tool:
     facts = memory.facts
     episodes = memory.episodes
 
     def manage_memory(action: str, kind: str = "fact", id: int = 0,
-                      query: str = "", content: str = "", subject: str = "") -> str:
+                      query: str = "", content: str = "", subject: str = "",
+                      result_id: str = "", offset: int = 0, limit: int = 1024) -> str:
         action = (action or "").lower()
+        if action == "read_result":
+            if result_reader is None:
+                return "Error: result reading is unavailable in this runtime"
+            return result_reader(result_id, offset, limit)
         if action == "search":
             if kind == "episode":
                 rows = episodes.list(20)
@@ -56,7 +61,7 @@ def make_manage_memory_tool(memory) -> Tool:
                 rid = int(id) if str(id).isdigit() else str(id)
                 return f"Deleted episode #{id}." if episodes.delete(rid) else f"No episode with id {id}."
             return f"Deleted fact #{id}." if facts.delete(int(id)) else f"No fact with id {id}."
-        return "action must be one of: search, update, delete"
+        return "action must be one of: search, update, delete, read_result"
 
     return Tool(
         name="manage_memory",
@@ -64,17 +69,26 @@ def make_manage_memory_tool(memory) -> Tool:
             "Search, correct, or delete the user's long-term memory (facts and episodes). "
             "ALWAYS search first to get the id, then update or delete that id. "
             "Use when the user says something you remember is wrong or should be forgotten."
+            + (" Use read_result to read a saved tool result in this session, using its result_id. "
+               "offset/limit are UTF-8 bytes; use next_offset for the next page. "
+               "Repeated read_result calls are allowed; never repeat the original action to read it."
+               if result_reader else "")
         ),
         input_schema={
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["search", "update", "delete"]},
+                "action": {"type": "string", "enum": ["search", "update", "delete"]
+                           + (["read_result"] if result_reader else [])},
                 "kind": {"type": "string", "enum": ["fact", "episode"], "description": "default fact"},
                 "id": {"type": ["integer", "string"],
                        "description": "row id (from a prior search); a number for sqlite, a page id string when the notion backend is active"},
                 "query": {"type": "string", "description": "keywords for search"},
                 "content": {"type": "string", "description": "new text for update"},
                 "subject": {"type": "string", "description": "optional new subject for a fact update"},
+                **({"result_id": {"type": "string", "description": "saved tool result ID"},
+                    "offset": {"type": "integer", "minimum": 0},
+                    "limit": {"type": "integer", "minimum": 1}}
+                   if result_reader else {}),
             },
             "required": ["action"],
         },

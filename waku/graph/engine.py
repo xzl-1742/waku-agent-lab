@@ -34,6 +34,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
+from waku.runtime.context import TurnStopped
+
 # Same observer protocol as the loop: notify(kind, event). Graph runs emit
 # graph_start / node_start / node_end / route / graph_end, and pass through
 # whatever a node emits (an agent_node's llm/tool events) tagged with node=.
@@ -144,6 +146,8 @@ def run_graph(graph: Graph, state: dict, observer: Observer | None = None,
         try:
             out = node.fn(snapshot)
             return name, out or {}, None, int((time.perf_counter() - t) * 1000)
+        except TurnStopped:
+            raise  # terminal budget/recording errors must never replay a turn
         except Exception as exc:  # surface, don't crash — the run drains cleanly
             return name, None, repr(exc), int((time.perf_counter() - t) * 1000)
 

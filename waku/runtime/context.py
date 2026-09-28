@@ -176,7 +176,7 @@ class BudgetedClient:
             self.messages.stream = self.stream
 
     def create(self, **kwargs):
-        self.notify("context", {**self.context_budget.check(kwargs), "stage": "dispatch"})
+        self._check(kwargs)
         response = self.client.messages.create(**kwargs)
         observed = self.context_budget.observe(kwargs, response)
         if observed:
@@ -185,7 +185,7 @@ class BudgetedClient:
 
     @contextmanager
     def stream(self, **kwargs):
-        self.notify("context", {**self.context_budget.check(kwargs), "stage": "dispatch"})
+        self._check(kwargs)
         with self.client.messages.stream(**kwargs) as stream:
             owner = self
 
@@ -202,6 +202,15 @@ class BudgetedClient:
                     return response
 
             yield ObservedStream()
+
+    def _check(self, request):
+        info = self.context_budget.measure(request)
+        try:
+            self.context_budget.check(request)
+        except ContextOverflow:
+            self.notify("context", {**info, "stage": "rejected"})
+            raise
+        self.notify("context", {**info, "stage": "dispatch"})
 
 
 def guard_client(client, budget):

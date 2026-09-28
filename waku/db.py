@@ -73,6 +73,37 @@ CREATE TABLE IF NOT EXISTS chat_log (
     session_id TEXT DEFAULT 'default',
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- Original structured exchanges survive prompt reduction. Legacy chat_log
+-- stays readable by old clients; old text rows are never assigned invented IDs.
+CREATE TABLE IF NOT EXISTS session_messages (
+    id INTEGER PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content_json TEXT NOT NULL,
+    schema_version INTEGER NOT NULL DEFAULT 1,
+    source TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(turn_id, position)
+);
+CREATE INDEX IF NOT EXISTS session_messages_session ON session_messages(session_id, id);
+CREATE TABLE IF NOT EXISTS tool_executions (
+    result_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    call_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    args_json TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('pending', 'complete')),
+    outcome_json TEXT,
+    result_bytes INTEGER,
+    result_sha256 TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS tool_executions_session ON tool_executions(session_id, turn_id);
 """
 
 

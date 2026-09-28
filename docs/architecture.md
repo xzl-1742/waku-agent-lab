@@ -93,13 +93,15 @@ friendly view; the **Data** tab shows the raw `state.db` tables.
 - `waku/gateway/` — how text gets in and out: `cli.py`, `voice.py` (wake word),
   `telegram.py`, `discord.py` and `whatsapp.py`, started by `runner.py` and
   `supervisor.py`. Gateways only move text.
-- `waku/runtime/session.py` — working memory for one turn: SOUL.md, memory
-  context and chat history.
+- `waku/runtime/session.py` assembles SOUL.md, memory context and chat history.
+  `runtime/context.py` budgets each request; `runtime/records.py` preserves original
+  messages and tool results while the prompt uses bounded observations.
 - `waku/loop/agent.py` — the loop. `loop/models.py` — pluggable providers over
   two wire formats.
 - `waku/graph/` — the engine, node factories and `workflows/` (triage): opt-in
   structure around the loop. The loop never changes, a graph node can be a loop
-  turn, and every failure fails open to the plain loop.
+  turn. Terminal budget/recording failures and failures after tool execution stop
+  the turn; they never fall back to replaying the action.
 - `waku/tools/` — what the agent can call: `calendar.py`, `google_calendar.py`,
   `apple.py`, `notes.py`, `messages.py`, `search.py`, `github.py`,
   `workspace.py`, `memory_admin.py`, the MCP client and `experimental.py`.
@@ -135,11 +137,36 @@ friendly view; the **Data** tab shows the raw `state.db` tables.
 - **Graphs wrap the loop, never replace it.** When a turn needs shape (parallel
   steps, explicit routing), an opt-in graph workflow (`waku/graph/`) arranges nodes
   around the untouched loop — the `full_agent` node IS `run_loop`. Routers are plain
-  code reading state a model wrote; every failure fails open to the plain loop; the
+  code reading state a model wrote; pre-action failures can fall back to the plain loop; the
   dashboard renders the topology from the engine's own `describe()` so the picture
   can't drift. See `docs/agent-graphs-design.md`.
 
 ## What this deliberately is not
+
+V1 defaults to the `budget` context policy. It counts the entire serialized request,
+reserves output tokens and a safety margin, then removes whole oldest exchanges
+until the active turn fits. Instructions and the active tool-call/result groups
+remain intact. A request that still cannot fit returns an explicit size error.
+The UTF-8 byte estimator is conservative, not an exact tokenizer. Provider usage
+can increase future estimates; missing usage cannot reduce them. Explicit model
+capacities override a 32,768-token fallback policy, which is not a provider guarantee.
+
+The shared Waku client guards loop, streaming, quick-reply, retrieval and
+consolidation calls. Graph LLM nodes and standalone loops also guard requests.
+Oversized helper requests fail before dispatch; a consolidation backlog stays
+unprocessed when its request is too large. V3 will add bounded consolidation batches.
+
+Additive `session_messages` and `tool_executions` tables preserve original content
+and call IDs alongside the compatible chat log. A tool execution is committed as
+pending before it runs; completion stores its full result under `results/<id>.txt`.
+Pending after interruption means unknown outcome, not safe to retry. Result files
+are private runtime data. `manage_memory read_result` reads bounded UTF-8 pages by
+result ID in the current session, without accepting arbitrary paths.
+
+Large observations retain execution state, quoted outcome fields, head/tail excerpts
+and a result reference. Reported text does not prove external action success. Recent
+prompt history keeps these bounded observations; canonical records retain originals.
+V1 does not summarize history, remove raw data or guarantee exactly-once external actions.
 
 Not a framework, not multi-agent, not production. (Still not multi-agent even with
 graph workflows: a graph's `agent_node` is the same loop invoked as one step — no

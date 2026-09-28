@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable
 
 from waku.graph.engine import Node, NodeFn, RouteFn
 from waku.loop.agent import run_loop
+from waku.runtime.context import ContextBudget, guard_client
 from waku.tools.registry import ToolRegistry
 
 
@@ -32,6 +33,8 @@ def llm_node(name: str, prompt_template: str, out_key: str, *,
     """ONE model call, no tools: the prompt template is formatted from state,
     the reply text lands in `out_key`. For classify / score / rewrite steps.
     Control flow never lives here — a router reads what this node wrote."""
+
+    client = guard_client(client, getattr(client, "context_budget", ContextBudget(main_model=model)))
 
     def run(state: dict) -> dict:
         prompt = prompt_template.format(**{k: v for k, v in state.items()
