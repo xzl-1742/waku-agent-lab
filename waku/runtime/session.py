@@ -41,6 +41,13 @@ Rules:
 """
 
 
+RESULT_READ_RULE = (
+    "Saved tool results may be read using manage_memory read_result. "
+    "Multiple read_result pages are allowed; never rerun the original action "
+    "to retrieve its output. A pending execution has an unknown outcome."
+)
+
+
 def load_soul(settings: Settings) -> str:
     """SOUL.md is the editable persona file, created on first run. Changing it
     changes who your Waku is — that's procedural memory at its simplest."""
@@ -86,9 +93,7 @@ class Session:
                 parts.append("\nRelevant skill instructions:\n" + skills)
 
         if self.settings.context_policy == "budget":
-            parts.append("\nSaved tool results may be read using manage_memory read_result. "
-                         "Multiple read_result pages are allowed; never rerun the original action "
-                         "to retrieve its output. A pending execution has an unknown outcome.")
+            parts.append("\n" + RESULT_READ_RULE)
 
         return "\n".join(parts)
 

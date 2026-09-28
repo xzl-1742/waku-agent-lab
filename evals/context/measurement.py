@@ -111,9 +111,11 @@ def source_snapshot(root=ROOT):
 def metadata(configuration="A", capacity=32768):
     from waku.memory.consolidation import SUMMARIZER_PROMPT
     from waku.memory.retrieval_gate import GATE_PROMPT
-    from waku.runtime.session import DEFAULT_SOUL
+    from waku.runtime.session import DEFAULT_SOUL, RESULT_READ_RULE
 
     prompts = {"soul": DEFAULT_SOUL, "gate": GATE_PROMPT, "consolidation": SUMMARIZER_PROMPT}
+    if configuration == "B":
+        prompts["result_read_rule"] = RESULT_READ_RULE
     references = json.loads(FIXTURES.with_name("references.json").read_text(encoding="utf-8"))
     return {
         "schema_version": 2, "configuration": configuration, "runner": "scripted-offline-v1",

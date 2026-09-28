@@ -1,4 +1,4 @@
-"""Replay the A baseline through real Waku sessions, tools and SQLite stores.
+"""Compare A (window) and B (budget) through Waku sessions, tools and SQLite.
 
 python -m evals.context.runner --split all --output eval-results/context-v0.json
 The model is scripted. Passing this run establishes execution coverage only.
@@ -204,7 +204,10 @@ def make_report(cases, root, configuration="A", capacity=32768):
         "measurement_limits": ["Scripted replies cannot establish model quality or token cost.",
                                "Call counts measure client invocations, excluding hidden SDK retries.",
                                "Consolidation outputs empty facts; extraction quality is unmeasured.",
-                               "Evidence probes inspect input availability, not model understanding."],
+                               "Evidence probes inspect input availability, not model understanding.",
+                               "Estimated input counts use UTF-8 JSON bytes, not provider token usage.",
+                               "B includes result-read instructions and schemas; A retains the old prompt.",
+                               "Shared correctness fixes and additive DB schema apply to both A and B."],
         "summary": {"scenarios": len(results), "complete": sum(c["status"] == "complete" for c in results),
                     "turns": len(durations), "model_calls": sum(c["model_calls"] for c in results),
                     "estimated_input_tokens_total": sum(c["estimated_input_tokens_total"] for c in results),

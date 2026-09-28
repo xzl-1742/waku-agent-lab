@@ -66,12 +66,44 @@ The manifest hashes allowlisted code and bundled skills even without a Git commi
 Each client/tool call measures its actual execution boundary with a monotonic clock.
 Client-call counts exclude hidden SDK retries. Missing and synthetic token usage
 and costs remain `null`; real-model quality remains `incomplete`.
-Configuration B, C and D are unavailable until their implementation milestones.
-The V0 runner supports scripted execution only; paid scenario comparisons remain
+Configuration A retains the window policy; V1 adds B with context budgets and
+recoverable tool outputs. C and D remain unavailable.
+The runner supports scripted execution only; paid scenario comparisons remain
 separate work. The existing live judge suite is enabled only by an explicit command.
 
 The reference snapshot pins Pi to a commit and stores short paraphrases of the
 official Claude Code documentation in `evals/context/references.json`.
+
+## Context budgets and A/B comparisons (V1)
+
+Run both policies against the same frozen data:
+
+```bash
+python -m evals.context.runner --configuration A --split all --output eval-results/context-v1-A.json
+python -m evals.context.runner --configuration B --split all --output eval-results/context-v1-B.json
+```
+
+Both runs use a 32,768-token test capacity, 8,192 output reserve and 1,024 safety
+margin for main calls. `--capacity` changes the test capacity for both model roles.
+Reports include per-request estimates, model output allowances, tool-schema hashes,
+pairing checks, recoverable artifact checks and source manifests. Estimate totals
+include answer, gate and consolidation calls. A budget violation in A means its
+estimated request would exceed B's configured budget, not a measured provider rejection.
+B can reject an oversized helper request without dispatching it; rejected requests
+remain visible in the report. No added summarizer is used.
+
+For normal Waku use, `WAKU_CONTEXT_POLICY=budget` is the default. `window` restores
+the original comparison policy. `WAKU_CONTEXT_WINDOW` and `WAKU_SMALL_CONTEXT_WINDOW`
+set explicit capacities; zero selects the conservative 32,768 fallback. Capacities
+apply to their configured model IDs, and a shared ID takes the smaller capacity.
+`WAKU_CONTEXT_SAFETY` defaults to 1,024. `WAKU_TOOL_OUTPUT_BYTES` defaults to 4,096
+and must be at least 1,024. The fallback is a local policy, not a verified model limit.
+
+An oversized required request stops with a clear error. The existing memory
+consolidator leaves an oversized backlog unprocessed; bounded batches belong to V3.
+Canonical records and full result files add disk usage. V1 does not delete runtime
+data, summarize old conversation or claim that forgotten information is absent
+from old transcripts. The V0 quality limitations still apply.
 
 ## Catching bugs
 
