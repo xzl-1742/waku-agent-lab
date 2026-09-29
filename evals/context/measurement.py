@@ -17,6 +17,7 @@ def request_stage(kwargs):
     from waku.memory.batches import BATCH_PROMPT
     from waku.memory.consolidation import SUMMARIZER_PROMPT
     from waku.memory.retrieval_gate import GATE_PROMPT
+    from waku.memory.selective_gate import PROMPT as SELECTIVE_PROMPT
     from waku.runtime.compaction import COMPACTION_PROMPT
 
     if kwargs.get("system") == COMPACTION_PROMPT:
@@ -25,7 +26,7 @@ def request_stage(kwargs):
         return "answer"
     content = str(kwargs.get("messages", [{}])[0].get("content", ""))
     for stage, prompt in (("gate", GATE_PROMPT), ("consolidation", SUMMARIZER_PROMPT),
-                          ("lifecycle_consolidation", BATCH_PROMPT)):
+                          ("lifecycle_consolidation", BATCH_PROMPT), ("selective_gate", SELECTIVE_PROMPT)):
         if content.startswith(prompt.split("\n\n")[0]):
             return stage
     return "unknown"
