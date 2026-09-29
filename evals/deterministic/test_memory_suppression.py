@@ -115,6 +115,10 @@ def test_protocol_fields_survive_redaction(tmp_path):
     value = app.memory.lifecycle.clean_value({"role": "assistant", "content": "assistant"})
     assert value["role"] == "assistant"
     assert "withheld" in value["content"]
+    block = app.memory.lifecycle.clean_value({"type": "tool_use", "id": "assistant", "name": "assistant",
+                                             "input": {"name": "assistant"}})
+    assert block["id"] == block["name"] == "assistant"
+    assert "withheld" in block["input"]["name"]
     json.dumps(value)
 
 

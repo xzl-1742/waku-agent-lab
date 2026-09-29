@@ -89,6 +89,9 @@ class Lifecycle:
                             and normalize(r["content"]) == normalize(content)), None)
             if row:
                 memory_id = row["id"]
+                if supersedes is not None:
+                    self.conn.execute("UPDATE facts SET source='correction',supersedes=?,updated_at=datetime('now') WHERE id=?",
+                                      (supersedes, memory_id))
             else:
                 memory_id = self.conn.execute(
                     "INSERT INTO facts(subject,content,source,scope,scope_id,learned_session_id,normalized_key,supersedes,updated_at) "
@@ -177,14 +180,14 @@ class Lifecycle:
             return "[Content withheld by memory suppression policy.]"
         return text
 
-    def clean_value(self, value):
+    def clean_value(self, value, protocol=True):
         if isinstance(value, str):
             return self.clean_text(value)
         if isinstance(value, list):
-            return [self.clean_value(v) for v in value]
+            return [self.clean_value(v, protocol) for v in value]
         if isinstance(value, dict):
             # Protocol identifiers must survive even when a forgotten value
             # happens to equal a role, tool name or provider call identifier.
-            structural = {"type", "role", "id", "name", "tool_use_id"}
-            return {k: v if k in structural else self.clean_value(v) for k, v in value.items()}
+            structural = {"type", "role", "id", "name", "tool_use_id"} if protocol and ("type" in value or "role" in value) else set()
+            return {k: v if k in structural else self.clean_value(v, protocol and k != "input") for k, v in value.items()}
         return value

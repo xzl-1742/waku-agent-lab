@@ -138,3 +138,13 @@ def test_additive_migration_preserves_old_ids_and_text(tmp_path):
         assert (fact["id"], fact["content"], fact["validity"], fact["scope"]) == (17, "original text", "active", "global")
         assert conn.execute("SELECT content FROM chat_log WHERE id=19").fetchone()[0] == "original chat"
         conn.close()
+
+
+def test_correction_to_existing_value_keeps_a_version_link(tmp_path):
+    app = lifecycle_app(tmp_path)
+    old = app.memory.facts.add("project", "Port 3000")
+    current = app.memory.facts.add("project", "Port 4000")
+    assert app.memory.facts.update(old, "Port 4000")
+    assert len(app.memory.facts.list()) == 1
+    row = app.memory.facts.list()[0]
+    assert (row["id"], row["supersedes"], row["source"]) == (current, old, "correction")
