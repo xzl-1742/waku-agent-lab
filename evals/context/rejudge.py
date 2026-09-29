@@ -4,6 +4,8 @@ import copy
 import hashlib
 import json
 
+from evals.context.fixtures import load_cases
+from evals.context.invariants import forgetting_check
 from evals.context.measurement import digest, source_snapshot
 from evals.context.probes import grade_probes, metrics, probe_status
 from evals.context.quality import aggregate, calibrate, grade
@@ -16,6 +18,7 @@ def regrade(original, client, model, should_stop=lambda: False):
     result.update(runner="live-rejudge", quality_status="incomplete", promotion_status="incomplete")
     result.pop("pilot", None)
     allowed_errors = {None, "JSONDecodeError", "ValueError", "ProbeCoverageIncomplete"}
+    cases = {c["id"]: c for c in load_cases()}
     for row in result["cases"]:
         row["previous_judgment"] = {k: copy.deepcopy(row.get(k)) for k in ("verdict", "error_type", "task_success", "probe_metrics")}
         if should_stop():
@@ -39,6 +42,9 @@ def regrade(original, client, model, should_stop=lambda: False):
             row["error_type"] = type(exc).__name__
         row["status"] = "failed" if row["error_type"] else "complete"
         row["probe_metrics"] = metrics(row["probes"])
+        row["forgetting_check"] = forgetting_check(cases[row["id"]], row["judge_input"]["reply"], row["probes"])
+        if not row["forgetting_check"]["passed"]:
+            row["task_success"] = False
         print(f'Regraded {row["id"]}/{row["arm"]}: {row["status"]}', flush=True)
     result["status"] = "complete" if len(result["cases"]) == result["expected_runs"] and all(r["status"] == "complete" for r in result["cases"]) else "incomplete"
     result.update(aggregate(result["cases"], [(r["id"], r["configuration"], r["trial"]) for r in result["cases"]]))

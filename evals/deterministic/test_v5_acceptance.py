@@ -54,6 +54,7 @@ def report(provider="primary", trials=5, reserved=False):
                         "verdict": {**c["expected"], "reason": "Synthetic test"}} for c in labels["cases"]]}
     source = {"manifest_sha256": "synthetic-source-fixture"}
     result = {"schema_version": 3, "runner": "live", "provider": provider, "status": "complete", "quality_status": "complete",
+              "evidence_contract": "covered-dialogue-v1",
               "source_stable": True, "source": source, "source_end": dict(source), "manifest_sha256": digest(manifest()),
               "trials": trials, "cases": rows, "calibration": calibration}
     if not reserved:

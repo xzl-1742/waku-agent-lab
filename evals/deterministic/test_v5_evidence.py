@@ -46,10 +46,14 @@ def test_checkpoint_uses_empty_argument_action_result_not_future_or_other_sessio
     first = json.dumps(capture.checkpoints[0], sort_keys=True)
     assert capture.checkpoints[0]["receipts"][0]["output"] == "Generated receipt A17"
     assert capture.checkpoints[0]["receipts"][0]["args"] == {}
+    transcript = capture.checkpoints[0]["conversation"]
+    assert any(m["role"] == "assistant" and m["content"] == "Done" for m in transcript)
+    assert max(m["source_id"] for m in transcript) <= capture.checkpoints[0]["covered_through"]
     record(app, "primary-project", "manage_memory", {"action": "delete", "id": 1}, "Deleted fact #1.")
     record(app, "other-project", "record_action", {}, "Foreign receipt")
     app.compact(observer=capture.observer(app))
     assert json.dumps(capture.checkpoints[0], sort_keys=True) == first
+    assert all("Foreign receipt" not in json.dumps(m) for m in capture.checkpoints[1]["conversation"])
     assert len(capture.checkpoints[1]["receipts"]) == 2
     assert len({r["result_id"] for r in capture.checkpoints[1]["receipts"]}) == 2
     assert not capture.errors

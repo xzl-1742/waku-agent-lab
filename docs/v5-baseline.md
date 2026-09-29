@@ -234,6 +234,15 @@ new output directory without replaying runtime or tools. It preserves previous
 judgments, original report hashes, separate judge usage and scoring-source
 snapshots. Rejudging cannot supply release evidence or repair missing execution.
 
+The `covered-dialogue-v1` evidence contract adds complete covered message roles
+and source IDs to checkpoint judgments. Assistant text proves that a reply was
+given; it does not prove an external action succeeded. Final memory probes also
+retain the observed dialogue. A deterministic guard rejects literal frozen
+forgotten values in answers, current facts and post-deletion checkpoints, even
+when the model calls them historical. It does not detect paraphrases. The
+fixture action description now names the requested action without exposing its
+expected receipt. Repeated `--arm` flags select explicit exploratory policies.
+
 To show a completed report in a selected dashboard, run
 `python -m evals.context.publish REPORT.json --home PATH_TO_SELECTED_WAKU_HOME`.
 This replaces only `comparison_report.json` in that explicitly selected home.

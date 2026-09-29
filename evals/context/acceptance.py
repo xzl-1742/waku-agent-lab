@@ -5,6 +5,7 @@ import math
 
 from evals.context.experiment import manifest
 from evals.context.fixtures import load_cases
+from evals.context.invariants import forgetting_check
 from evals.context.measurement import digest
 from evals.context.probes import probe_status
 
@@ -84,6 +85,8 @@ def validate_rows(report, *, all_cases=True):
                 return None
             action_ok = row["actual_actions"] == ([case["old"]] if case["family"] == "tools" else [])
             task_ok = verdict["task_success"] and not verdict["stale_assertion"] and not verdict["unsupported_assertion"] and action_ok and probes == "complete"
+            if not forgetting_check(case, row.get("judge_input", {}).get("reply", ""), row["probes"])["passed"]:
+                task_ok = False
             # Derived values are recomputed even if an imported report claims otherwise.
             normalized.append({**row, "split": case["split"], "action_check": action_ok, "task_success": task_ok})
         if not expected <= seen or all_cases and seen != expected:
@@ -99,7 +102,8 @@ def source_stable(report):
 
 
 def header_complete(report):
-    return (report.get("schema_version") == 3 and report.get("runner") == "live" and report.get("status") == "complete"
+    return (report.get("schema_version") == 3 and report.get("evidence_contract") == "covered-dialogue-v1"
+            and report.get("runner") == "live" and report.get("status") == "complete"
             and report.get("quality_status") == "complete" and source_stable(report)
             and report.get("manifest_sha256") == digest(manifest()) and calibrated(report.get("calibration", {})))
 

@@ -67,6 +67,9 @@ def execute(args, *, client_factory=None, should_stop=None):
     output.mkdir(parents=True, exist_ok=False)
     all_rows, results = [], []
     config = manifest()
+    arms = getattr(args, "arms", None) or list(config["arms"])
+    if set(arms) - set(config["arms"]) or len(arms) != len(set(arms)) or (not exploratory and set(arms) != set(config["arms"])):
+        raise ValueError("Policy subsets require exploratory mode and distinct known arms")
     source = source_snapshot()
     from waku.ops.usage import load_rates
     rates = load_rates(args.rates) if getattr(args, "rates", None) else {}
@@ -140,7 +143,7 @@ def execute(args, *, client_factory=None, should_stop=None):
             return save({"status": "incomplete", "reason": "Judge calibration did not pass", "calibration": calibration,
                     "usage": summarize(judge_rows, rates), "promotion_status": "incomplete"})
         import random
-        order = [(case, arm, trial) for case in cases for trial in range(1, args.trials + 1) for arm in config["arms"]]
+        order = [(case, arm, trial) for case in cases for trial in range(1, args.trials + 1) for arm in arms]
         random.Random(config["seed"]).shuffle(order)
         for case, arm, trial in order:
             if should_stop is not None and should_stop():
@@ -172,7 +175,7 @@ def execute(args, *, client_factory=None, should_stop=None):
                     # asking the model to invent the fixture receipt is not a task.
                     actions.append(case["old"])
                     return case["old"]
-                app.tools.register(Tool("record_action", "Record one local fixture action.",
+                app.tools.register(Tool("record_action", f"Perform {case['subject']} once and return its generated completion receipt. This is the local fixture action requested by the user.",
                     {"type": "object", "properties": {}}, action))
                 app.tools.register(Tool("read_fixture", "Read a synthetic local log.", {"type": "object", "properties": {}},
                                         lambda: "x" * (case["output_kib"] * 1024)))
@@ -204,7 +207,7 @@ def execute(args, *, client_factory=None, should_stop=None):
                 error = type(exc).__name__
             finally:
                 if app is not None:
-                    capture.finish(app, actions)
+                    capture.finish(app, actions, replies)
                     try:
                         app.close()
                     except Exception as exc:
@@ -250,6 +253,10 @@ def execute(args, *, client_factory=None, should_stop=None):
             result["task_success"] = (bool(verdict["task_success"]) and not verdict["stale_assertion"]
                                       and not verdict["unsupported_assertion"] and result["action_check"]
                                       and probe_status(probes) == "complete" if verdict and not error else None)
+            from evals.context.invariants import forgetting_check
+            result["forgetting_check"] = forgetting_check(case, item["reply"], probes)
+            if not result["forgetting_check"]["passed"]:
+                result["task_success"] = False
             results.append(result)
             all_rows.extend(rows)
             with (output / "runs.jsonl").open("a", encoding="utf-8") as handle:
@@ -266,6 +273,7 @@ def execute(args, *, client_factory=None, should_stop=None):
             except (OSError, ValueError) as exc:
                 secondary_error = type(exc).__name__
         report = {"schema_version": 3, "runner": "live-exploratory" if exploratory else "live",
+                "evidence_contract": "covered-dialogue-v1", "selected_arms": arms,
                 "experiment": config["experiment"], "manifest_sha256": digest(config),
                 "source": source, "source_end": final_source, "source_stable": source == final_source,
                 "provider": args.provider, "models": {"answer": args.model, "small": args.small_model, "judge": args.judge_model},

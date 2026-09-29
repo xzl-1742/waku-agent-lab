@@ -6,7 +6,7 @@ before a restart or later revision can replace it; judging happens afterwards.
 
 import json
 
-from evals.context.evidence import persisted, receipt, valid_receipts
+from evals.context.evidence import conversation, persisted, receipt, valid_receipts
 from evals.context.fixtures import expand
 
 MEMORY_LIMIT = 200
@@ -93,6 +93,7 @@ class ProbeCapture:
                 evidence = sources(app, identity["session_id"], identity["covered_through"])
                 self.checkpoints.append({**identity, "snapshot": json.loads(row["summary_json"]),
                     "evidence": evidence, **expectations(self.case, evidence),
+                    "conversation": conversation(app, identity["session_id"], identity["covered_through"]),
                     "receipts": receipts(app, identity["session_id"], identity["covered_through"])})
             except Exception as exc:
                 # A failed eval observer must not turn a successful publication
@@ -100,7 +101,7 @@ class ProbeCapture:
                 self.errors.append({**identity, "error_type": type(exc).__name__})
         return observe
 
-    def finish(self, app, actions):
+    def finish(self, app, actions, replies=None):
         try:
             self.persisted = [dict(r) for r in app.conn.execute(
                 "SELECT session_id,revision,covered_through FROM session_checkpoints ORDER BY rowid")]
@@ -111,7 +112,7 @@ class ProbeCapture:
             # The evaluator's input log provides equal evidence for all arms.
             evidence = list(self.inputs)
             self.memory = {"snapshot": [{k: r.get(k) for k in ("id", "subject", "content", "source", "scope", "scope_id")}
-                                        for r in facts], "evidence": evidence,
+                                        for r in facts], "evidence": evidence, "dialogue": list(replies or []),
                            **expectations(self.case, evidence, memory=True), "receipts": list(self.executions)}
         except Exception as exc:
             self.errors.append({"kind": "memory", "error_type": type(exc).__name__})
@@ -141,12 +142,15 @@ def judge_payload(kind, evidence, snapshot):
         "memory_support": "Assess this stored fact: every factual claim must be supported by user evidence or actual receipts. It must not retain a forgotten or superseded value as current.",
         "memory_recall": "Assess these stored facts: they must express ALL required facts with the correct subject. An empty store fails when a fact is required.",
     }
+    if kind == "checkpoint":
+        tasks[kind] += " Conversation source IDs refer to the full covered transcript. A receipt source_id identifies the user turn, not every assistant/result message. Metadata is not a separate factual claim. Dialogue can prove an answer was given but cannot prove an external action succeeded."
     if kind in ("memory_support", "memory_recall"):
         tasks[kind] += " The reply is an actual database snapshot. Assess only subject/content; IDs, source and scope are metadata, not additional factual claims or requests to prove storage. Explicit 'remember X' user text supports X."
         def project(fact):
             return {k: fact[k] for k in ("subject", "content")}
         snapshot = project(snapshot) if kind == "memory_support" else [project(f) for f in snapshot]
     return {"task": tasks[kind], "evidence": {"user_messages": evidence["evidence"],
+            "conversation": evidence.get("conversation", []), "dialogue": evidence.get("dialogue", []),
             "required": evidence["required"] if kind != "memory_support" else [],
             "forbidden": evidence["forbidden"]}, "reply": json.dumps(snapshot, ensure_ascii=False),
             "receipts": evidence["receipts"]}

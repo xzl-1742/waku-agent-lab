@@ -107,7 +107,7 @@ def run(args):
     settings = SimpleNamespace(live=True, exploratory=True, provider="deepseek", model=MODEL,
         small_model=MODEL, judge_model=MODEL, calibration=Path(__file__).with_name("calibration.example.json"),
         output=args.output, split="development", trials=1, max_calls=args.max_calls, case_ids=selected,
-        check_examples=getattr(args, "check_examples", False))
+        check_examples=getattr(args, "check_examples", False), arms=getattr(args, "arms", None))
     report = None
     try:
         if getattr(args, "rejudge", None):
@@ -154,6 +154,7 @@ def main():
     parser.add_argument("--check-examples", action="store_true", help="Measure provisional label agreement without claiming reviewed calibration")
     parser.add_argument("--rejudge", type=Path, help="Regrade saved synthetic evidence without repeating runtime or tools")
     parser.add_argument("--case", dest="case_ids", action="append")
+    parser.add_argument("--arm", dest="arms", choices=list("ABCD"), action="append", help="Explicit exploratory policy subset")
     parser.add_argument("--output", type=Path, default=Path("eval-results/deepseek-flash-pilot"))
     args = parser.parse_args()
     if not args.live:

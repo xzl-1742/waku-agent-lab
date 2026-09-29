@@ -71,3 +71,21 @@ def valid_receipts(rows, *, session=None, through=None):
         except (KeyError, TypeError, ValueError):
             return False
     return True
+
+
+def conversation(app, session, through):
+    """Preserve covered message roles and IDs for claims about prior dialogue."""
+    rows = app.conn.execute("SELECT id,role,content_json FROM session_messages WHERE session_id=? AND id<=? ORDER BY id",
+                            (session, through))
+    result = []
+    for row in rows:
+        content = json.loads(row["content_json"])
+        if isinstance(content, list):
+            for block in content:
+                text = block.get("content")
+                if block.get("type") == "tool_result" and isinstance(text, str) and text and set(text) == {"x"}:
+                    block["content"] = {"encoding": "repeat", "text": "x", "count": len(text)}
+        result.append({"source_id": row["id"], "role": row["role"], "content": content})
+    if len(json.dumps(result, ensure_ascii=False).encode("utf-8")) > 1048576:
+        raise ValueError("Conversation evidence exceeds the evaluation bound")
+    return result
