@@ -6,20 +6,22 @@ function editFact(id){
   const row = document.getElementById("fact-"+id); if(!row) return;
   editing = true;
   const cell = row.querySelector(".fc"); const cur = cell.textContent;
-  cell.innerHTML = `<textarea class="editor" id="ef-${id}">${cur.replace(/</g,"&lt;")}</textarea>`;
+  cell.innerHTML = `<textarea class="editor" id="ef-${esc(id)}">${esc(cur)}</textarea>`;
   const act = row.lastElementChild;
-  act.innerHTML = uiButton("save", {level: "primary", size: "sm", onclick: `saveFact(${id})`})
+  act.innerHTML = uiButton("save", {level: "primary", size: "sm", onclick: `saveFact(${esc(JSON.stringify(id))})`})
     + " " + uiButton("cancel", {level: "tertiary", size: "sm", onclick: "editing=false;refresh()"});
   document.getElementById("ef-"+id).focus();
 }
 async function saveFact(id){
   const v = document.getElementById("ef-"+id).value.trim();
-  await postJSON("/api/memory", {action:"update_fact", id, content:v});
+  const result = await postJSON("/api/memory", {action:"update_fact", id, content:v});
+  if (result.error || result.ok === false) { alert(result.error || "Memory was not updated."); return; }
   editing = false; refresh();
 }
 async function delMem(action, id){
   if(!confirm("Delete this from memory?")) return;
-  await postJSON("/api/memory", {action, id});
+  const result = await postJSON("/api/memory", {action, id});
+  if (result.error || result.ok === false) { alert(result.error || "Memory was not deleted."); return; }
   refresh();
 }
 // dirty-state: a Save button stays muted until its editor actually changes

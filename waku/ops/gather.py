@@ -27,6 +27,7 @@ from rich.console import Console
 from waku.app import Waku
 from waku.graph import run_graph
 from waku.graph.workflows.gather import DIGEST_PROMPT, build_gather_graph
+from waku.memory.locking import memory_lock
 from waku.runtime.context import BudgetedClient, TurnStopped
 
 DEFAULT_TOPICS = "AI agent harness loop memory eval"
@@ -90,12 +91,13 @@ def _memory(settings) -> str:
     import sqlite3
 
     from waku.db import connect
-    from waku.memory.semantic.store import SqliteFactStore
+    from waku.memory import Memory
 
     conn = None
     try:
         conn = connect(settings.home)
-        found = SqliteFactStore(conn).search("project repo contributors release", 8)
+        memory = Memory(conn, settings, None)
+        found = memory.facts.search("project repo contributors release", 8)
         return "\n".join(found) or "(nothing relevant)"
     except sqlite3.Error as exc:
         return f"(memory unavailable: {exc})"
@@ -107,6 +109,7 @@ def _memory(settings) -> str:
 def _synthesize(waku, state: dict) -> str:
     """One model call, NO tools parameter. That absence is the propose-never-act
     guarantee — a model with no tool schemas cannot call a tool."""
+    waku._sync_memory_policy()
     prompt = DIGEST_PROMPT.format(
         gh_text=state.get("gh_text", ""), web_text=state.get("web_text", ""),
         cal_text=state.get("cal_text", ""), mem_text=state.get("mem_text", ""))
@@ -132,13 +135,21 @@ def _draft(home: Path, state: dict) -> str:
 def build_bound_graph(waku: Waku):
     """The pure workflow, wired to this machine."""
     s = waku.settings
+    generation = waku.memory.lifecycle.generation
+
+    def current(fn, state):
+        with memory_lock(s.home):
+            if waku.memory.lifecycle.generation != generation:
+                raise TurnStopped("Memory changed during gathering; run a fresh scan before creating a digest.")
+            return fn(state)
+
     return build_gather_graph(
         github_fn=lambda: _github(s),
         web_fn=lambda: _web(s),
         calendar_fn=lambda: _calendar(s),
         memory_fn=lambda: _memory(s),
-        synth_fn=lambda state: _synthesize(waku, state),
-        draft_fn=lambda state: _draft(s.home, state),
+        synth_fn=lambda state: current(lambda value: _synthesize(waku, value), state),
+        draft_fn=lambda state: current(lambda value: _draft(s.home, value), state),
     )
 
 

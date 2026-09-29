@@ -89,11 +89,12 @@ function memSemantic(d){
     the smallest, most-reused store. Edit or forget any of them; changes are live next turn.</div>`;
   // editFact (memory.js) finds the row #fact-N, swaps its .fc for a textarea
   // and its last cell for save/cancel, so the row carries the id.
+  if (d.facts_error) h += uiCard(`<span class="empty">Could not read facts: ${esc(d.facts_error)}</span>`);
   h += uiTable(["subject", "fact", "source", ""], d.facts.map(f => ({id: `fact-${f.id}`, cells: [
     `<code>${esc(f.subject)}</code>`,
     `<span class="fc">${esc(f.content)}</span>`,
     `<span class="meta">${esc(f.source)}</span>`,
-    `<span style="white-space:nowrap">${uiButton("edit", {level: "tertiary", size: "sm", onclick: `editFact(${f.id})`})} · ${uiButton("delete", {level: "tertiary", size: "sm", danger: true, onclick: `delMem('delete_fact',${f.id})`})}</span>`,
+    `<span style="white-space:nowrap">${uiButton("edit", {level: "tertiary", size: "sm", onclick: `editFact(${esc(JSON.stringify(f.id))})`})} · ${uiButton("delete", {level: "tertiary", size: "sm", danger: true, onclick: `delMem('delete_fact',${esc(JSON.stringify(f.id))})`})}</span>`,
   ]})), {empty: "no facts yet"});
   return h;
 }
@@ -107,7 +108,7 @@ function memEpisodic(d){
     (the big one) on the Database tab — episodes are its highlights.</span>`);
   h += uiTable(["date","episode",""], d.episodes.map(e => [
     `<span class="meta">${esc(e.happened_at)}</span>`, esc(e.summary),
-    uiButton("delete", {level: "tertiary", size: "sm", danger: true, onclick: `delMem('delete_episode','${e.id}')`}),
+    uiButton("delete", {level: "tertiary", size: "sm", danger: true, onclick: `delMem('delete_episode',${esc(JSON.stringify(e.id))})`}),
   ]), {empty: "no episodes yet"});
   return h;
 }

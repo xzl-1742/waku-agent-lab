@@ -287,6 +287,23 @@ def collect() -> dict:
     home = settings.home
     conn = connect(home)
 
+    from waku.memory import Memory
+    from waku.memory.episodic.store import SqliteEpisodeStore
+    from waku.memory.lifecycle import Lifecycle
+    from waku.memory.semantic.store import SqliteFactStore
+
+    policy = Lifecycle(conn, settings)
+    live = browser_agent.current()
+    if live:
+        policy.session_id = live.session.session_id
+    try:
+        facts = Memory._make_fact_store(conn, settings)
+        if isinstance(facts, SqliteFactStore):
+            facts.lifecycle = policy
+        facts_data, facts_error = facts.list(), ""
+    except Exception as exc:
+        facts_data, facts_error = [], str(exc)
+
     def rows(sql: str) -> list[dict]:
         return [dict(r) for r in conn.execute(sql).fetchall()]
 
@@ -297,9 +314,7 @@ def collect() -> dict:
             return {
                 "source": "sqlite",
                 "error": "",
-                "items": rows(
-                    "SELECT id, happened_at, summary FROM episodes ORDER BY happened_at DESC"
-                ),
+                "items": SqliteEpisodeStore(conn, lifecycle=policy).list(),
             }
         try:
             global _notion_episodes
@@ -485,7 +500,9 @@ def collect() -> dict:
                        for e in events[-18:]][::-1],
         "trace_file": (trace_files[-1].name if trace_files else None),
         "trace_errors": trace_errors,
-        "facts": rows("SELECT id, subject, content, source, created_at FROM facts ORDER BY id DESC"),
+        "facts": facts_data,
+        "facts_source": settings.semantic_store,
+        "facts_error": facts_error,
         "episodes": episodes_data["items"],
         "episodes_source": episodes_data["source"],
         "episodes_error": episodes_data["error"],
@@ -816,10 +833,9 @@ def reveal_path(rel: str) -> dict:
 
 def memory_action(payload: dict) -> dict:
     """Human CRUD on memory from the dashboard: update/delete facts & episodes,
-    rewrite SOUL.md. Writes the same sqlite file the agent uses (busy_timeout
-    covers contention); changes are live for the next agent turn."""
-    from waku.memory.episodic.store import SqliteEpisodeStore
-    from waku.memory.semantic.store import SqliteFactStore
+    rewrite SOUL.md. Uses the agent's selected stores and lifecycle policy."""
+    from waku.memory import Memory
+    from waku.memory.locking import memory_lock
 
     settings = load_settings()
     settings.ensure_home()
@@ -849,27 +865,35 @@ def memory_action(payload: dict) -> dict:
         dest.write_text(text.rstrip() + "\n", encoding="utf-8")
         return {"ok": True}
 
-    conn = connect(settings.home)
-    facts, episodes = SqliteFactStore(conn), SqliteEpisodeStore(conn)
-    if action == "delete_episode" and settings.episodic_store == "notion":
-        global _notion_episodes
-        with _notion_lock:
-            ok = _get_notion_store().delete(str(payload.get("id", "")))
-            # bust the TTL cache so the next collect() refetches — otherwise a
-            # deleted episode would linger on the page for up to 30s
-            _notion_episodes = None
-        return {"ok": ok}
-    try:
-        rid = int(payload.get("id", 0))
-    except (TypeError, ValueError):
+    rid = payload.get("id")
+    if type(rid) not in (int, str) or rid == "":
         return {"error": "bad id"}
-    if action == "update_fact":
-        return {"ok": facts.update(rid, payload.get("content", ""), payload.get("subject") or None)}
-    if action == "delete_fact":
-        return {"ok": facts.delete(rid)}
-    if action == "delete_episode":
-        return {"ok": episodes.delete(rid)}
-    return {"error": f"unknown action {action}"}
+    with agent_lock, memory_lock(settings.home):
+        conn = connect(settings.home)
+        try:
+            episode_store = None
+            if settings.episodic_store == "notion":
+                with _notion_lock:
+                    episode_store = _get_notion_store()
+            memory = Memory(conn, settings, None, episode_store=episode_store)
+            live = browser_agent.current()
+            if live:
+                memory.lifecycle.session_id = live.session.session_id
+            if action == "update_fact":
+                ok = memory.facts.update(rid, payload.get("content", ""), payload.get("subject") or None)
+            elif action == "delete_fact":
+                ok = memory.facts.delete(rid)
+            elif action == "delete_episode":
+                ok = memory.episodes.delete(rid)
+                global _notion_episodes
+                with _notion_lock:
+                    _notion_episodes = None
+            else:
+                return {"error": f"unknown action {action}"}
+            memory.export_markdown()
+            return {"ok": ok}
+        finally:
+            conn.close()
 
 
 
