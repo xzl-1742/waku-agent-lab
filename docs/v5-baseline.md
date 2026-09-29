@@ -113,6 +113,12 @@ and the approved six-version plan does not define a V6 milestone.
 
 ### Acceptance follow-up
 
+The follow-up's full isolated run passed **1239 checks**, with 63 skips and no
+failures. Ruff, skill validation, configuration-example consistency and rulebook
+checks passed. The strict gate stayed `incomplete` because no real provider
+evaluation was requested. This adds 24 deterministic cases to the original V5
+suite; it does not change the historical 720-run performance measurements.
+
 `evals/context/probes.py` listens to the existing `compaction_completed` observer.
 It immediately copies the published revision, covered user evidence and actual
 local action receipts. Future corrections cannot relabel earlier checkpoints.
