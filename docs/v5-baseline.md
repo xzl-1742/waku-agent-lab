@@ -27,7 +27,7 @@ paired scenario uncertainty and release checks. Live execution is explicit,
 uses disposable stores and exposes only local fixture tools. It saves final
 replies, actual action receipts, verdicts and raw model-call rows. Labels supplied
 by the implementation are proposed labels; they are not independent calibration.
-The live runner has been exercised with injected offline clients only. A V5
+The live runner has offline contract checks and a partial DeepSeek Flash pilot. A V5
 acceptance follow-up adds snapshots and checks after each published compaction
 and at final memory state; the original offline measurements below are unchanged.
 
@@ -105,10 +105,10 @@ or the V5 comparison evidence is missing. It cannot promote a scripted result,
 partial fixture subset, incomplete calibration or a same-provider smoke report.
 Critical failures override average improvements. Full live acceptance requires
 five trials across the entire frozen matrix plus calibrated judging and a
-separate provider's reserved compatibility run. Real execution has not been run.
+separate provider's reserved compatibility run. Only a partial live pilot has run.
 The semantic harness now grades final answers, each captured checkpoint, stored
 facts and explicit required-fact recall. This capability has deterministic tests;
-its live judge quality remains unmeasured. V5 is not declared release-complete,
+its live judge quality remains uncalibrated. V5 is not declared release-complete,
 and the approved six-version plan does not define a V6 milestone.
 
 ### Acceptance follow-up
@@ -178,8 +178,8 @@ For an explicitly configured live run, the required arguments are `--live`,
 `--provider`, `--model`, `--small-model`, `--judge-model`, `--calibration`,
 `--max-calls` and a new `--output` directory. Provide credentials in that process
 environment; dotenv discovery is disabled. The allowance limits client requests,
-not internal SDK HTTP retries or a monetary amount. This command has not been run
-against a real provider. Review and copy the proposed calibration JSON before use;
+not internal SDK HTTP retries or a monetary amount. The Flash pilot below uses
+the exploratory path. Review and copy the proposed calibration JSON before use;
 its `reviewed=false` deliberately prevents release calibration.
 
 Optional `--rates` accepts a JSON array. Each entry identifies `provider`, `model`,
@@ -215,6 +215,71 @@ To show a completed report in a selected dashboard, run
 This replaces only `comparison_report.json` in that explicitly selected home.
 It does not switch policies or remove memory. No result has been imported into
 the user's runtime during this work.
+
+## DeepSeek Flash pilot, 2026-09-29
+
+Two explicit runs used `deepseek-flash` for answers, gates, memory extraction
+and provisional judging, with thinking disabled. The six short development
+families cover constraints, tool receipts, corrections, forgetting, retrieval
+and session isolation. Each case has eight user turns. All data and tool actions
+were synthetic, and memory lived in disposable stores.
+
+| Measurement | Initial pilot | Forgetting follow-up |
+|---|---:|---:|
+| Source commit | `dab49ed` | `b87295b` |
+| Source unchanged during run | Yes | Yes |
+| Provider requests attempted | 211 | 85 |
+| Responses with measured usage | 210 | 85 |
+| Scenarios with final answers and verdicts | 9 | 4 |
+| Scenarios with complete probe grading | 8 | 4 |
+| User turns completed | 76 | 32 |
+| Checkpoints published | 0 | 0 |
+
+The initial request failure stopped further paid calls. Its original harness
+still emitted failed rows for the remaining scenarios; those rows are not
+completed coverage. One earlier scenario had a malformed probe verdict. The
+follow-up stops before starting another scenario after transport failure,
+retains only safe exception diagnostics, and uses a 90-second SDK timeout.
+Both runs disabled automatic retries. Their combined conservative charge,
+including a full-context reserve for the unknown failed request, is CNY 2.762012,
+below the CNY 5 allowance. This reserve is not an invoice.
+
+The 295 measured responses used 258,162 input and 10,375 output tokens; 156,160
+input tokens hit the provider cache. Using the official off-peak prices checked
+on 2026-09-29 gives **CNY 0.1466252 estimated cost**, excluding the failed request's
+unknown usage. Account balance observations lagged the measured calls, so their
+immediate deltas do not establish the final bill. Prices and the original
+provider usage counters are retained with the local artifacts.
+
+A later balance query returned CNY 24.82, compared with CNY 24.97 before the
+first run. The observed CNY 0.15 account change is consistent with the measured
+usage estimate, but may also include unrelated account activity.
+
+The pilot found evaluation defects that prevent a credible policy ranking:
+
+- Fact grading sometimes treated `scope` and `source` metadata as unsupported
+  user claims, despite reading them from an actual stored-memory snapshot.
+- Final-answer evidence included fixture action receipts but omitted memory-tool
+  execution receipts, causing inconsistent judgments about saving and deleting.
+- One judge response did not satisfy the strict response schema.
+
+All four forgetting runs ended with an empty fact store and no repeated deleted
+code in the final answer. The provisional judge still disagreed about deletion
+claims. These observations support an evidence-payload and calibration follow-up;
+they do not establish calibrated task-success rates. No checkpoint was published,
+so this pilot does not measure compaction retention. Reserved cases, repeated
+trials and another provider remain untested.
+
+Local reports are `eval-results/deepseek-flash-pilot-20260929/report.json` and
+`eval-results/deepseek-flash-forget-20260929/report.json`. Their SHA-256 digests are
+`360221b9be321990bdc264eee59927114cf6396854ee9bfaf45f4b2b5e849e43` and
+`79188207a881cd8659eb38417f98f5ab998389bd8cc6c6f7f2a1a9f21416a6b2`.
+The combined local summary is `eval-results/deepseek-flash-summary-20260929.json`.
+Raw reports stay outside Git. Calibration, quality and promotion remain incomplete.
+
+The final isolated suite passed **1251 checks**, with 63 skips. Ruff, the skills
+validator and generated environment-template checks passed. The strict release
+gate retained `quality incomplete` because full live acceptance is still missing.
 
 ## Policy rollback
 
