@@ -9,8 +9,11 @@ V0 implementation and offline verification are complete; [the baseline report](v
 V1 implementation was approved on 2026-09-28; [the V1 report](v1-baseline.md) records
 the implemented behavior and frozen A/B results. V2 now implements opt-in
 session compaction and offline B2 comparisons. Live summary quality remains
-unmeasured. V3 through V5 remain planned work, subject to the architecture
-review described in [conventions section 2](context/conventions.md#2-how-much-process-a-change-needs).
+unmeasured. V3 and V4 now implement opt-in lifecycle memory and selective retrieval.
+V5 supplies combined offline comparisons, attributed usage and live evaluation
+entry points. Live release acceptance remains incomplete; see
+[the V5 report](v5-baseline.md). This proposal still defines the remaining
+quality and resource gates.
 
 ## 1. Outcomes and current evidence
 

@@ -37,6 +37,7 @@ into four groups.
 | [v2-baseline.md](v2-baseline.md) | persistent checkpoints, frozen B/B2 retention measurements and summary overhead |
 | [v3-baseline.md](v3-baseline.md) | memory lifecycle, suppression tradeoffs and frozen V3-window/V3-compact results |
 | [v4-baseline.md](v4-baseline.md) | selective retrieval, evidence budgets, recovery reads and frozen recall comparisons |
+| [v5-baseline.md](v5-baseline.md) | combined comparisons, attributed usage, dashboard evidence and incomplete live release acceptance |
 | [providers-registry.md](providers-registry.md) | adding a model provider: one table in `waku/providers.toml` |
 | [memory-backends-playbook.md](memory-backends-playbook.md) | seeing your memories in each provider's own console |
 | [benchmarks.md](benchmarks.md) | what has been measured, and how |

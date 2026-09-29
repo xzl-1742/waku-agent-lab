@@ -227,6 +227,22 @@ The default remains `legacy`; remote stores reject selective configuration.
 The [V4 report](v4-baseline.md) records reserved misses, metadata overhead and
 the lack of a measured answer-quality or cost improvement.
 
+## Combined evaluation and observability (V5)
+
+`ops/accounting.py` owns SDK invocation accounting below request guards. Stage
+and session/turn attribution follow graph worker threads; observer fan-out cannot
+duplicate ledger entries. Provider usage is captured before adapter response
+interpretation and explicit adapter retries are separate attempts. Missing usage
+stays unknown. Strict runtime/judge totals live in `ops/usage.py`; existing pricing
+charts remain estimates.
+
+`ops/observability.py` groups interleaved turns by identifier and projects recent
+trace fields, checkpoint validity and a comparison summary into the existing
+dashboard API. The projection omits raw trace text. `evals/context/matrix.py`
+runs the frozen scripted matrix; `live.py` requires explicit execution with
+reviewed calibration, local tools and disposable stores. The comparison gate
+requires live evidence before promotion. See [the V5 report](v5-baseline.md).
+
 ## What this deliberately is not
 
 Not a framework, not multi-agent, not production. (Still not multi-agent even with

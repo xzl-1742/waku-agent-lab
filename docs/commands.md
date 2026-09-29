@@ -62,3 +62,11 @@ checkpoints and raw records. Interrupted executions require reconciliation.
 
 Tests live in `evals/`, not `tests/`. [evals.md](evals.md) explains the two
 kinds.
+
+For the V5 combined comparison, `python -m evals.context.matrix --split all
+--trials 5` runs all four policies offline. `python -m evals.context.live` prints
+a credential-free live execution plan. Explicit live arguments, comparison
+imports and unchanged policy defaults are documented in [v5-baseline.md](v5-baseline.md).
+`python -m waku.ops.release_gate --strict --comparison REPORT.json` also requires
+the combined comparison to satisfy promotion checks. Missing live evidence
+keeps this gate incomplete.

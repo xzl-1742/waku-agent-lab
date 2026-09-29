@@ -127,6 +127,27 @@ execution means critical invariants held, not that all relevant evidence was
 found. Answer assertions, learned gate quality, provider tokens and cost remain
 unmeasured. V0's long-context fixtures and V5's combined C/D labels stay separate.
 
+## Combined comparison (V5)
+
+`python -m evals.context.matrix --split all --trials 5` runs the frozen four-arm
+offline matrix. V5-A is window/legacy/legacy, V5-B compact/legacy/legacy,
+V5-C window/lifecycle/selective, and V5-D compact/lifecycle/selective. Historical
+V1 B still means budget. Repeated scripts measure execution and local timing;
+they do not measure model task success. See [the V5 report](v5-baseline.md).
+
+`python -m evals.context.live` prints a plan without loading configuration or
+credentials. Execution requires explicit `--live`, provider/model IDs, reviewed
+calibration cases and a client-call allowance. It uses disposable SQLite stores
+and local fixture tools. It disables dotenv discovery. Optional `--rates` reads
+dated price provenance; absent usage or prices leave costs unknown. The harness
+stores raw call rows separately from blind verdicts and checks actual action
+receipts. `--second-provider` validates a separate provider's reserved smoke report.
+Incomplete coverage, source changes or missing evidence cannot promote defaults.
+
+The optional `python -m evals.retrieval.hybrid` experiment uses a separate frozen
+eight-case bank and externally supplied vectors. Without them it reports
+unavailable. It compares ranking, not production answer quality.
+
 ## Catching bugs
 
 The history regressions cover zero and negative `WAKU_HISTORY_TURNS` values.
@@ -142,13 +163,19 @@ it in. The gate records each run in its output directory.
 
 ## Spend is permanent
 
-The loop and compactor append usage to `.waku/usage.jsonl`, an append-only
-ledger that a demo reset never wipes. Compaction records its model, request
-hash, cache usage when available, and null counts when usage is unavailable.
-The **Ops** tab totals recorded token counts and estimates cost from them.
-Missing usage contributes no tokens or dollars to those totals; the usage API
-also reports an `unmeasured_calls` count. V5 will extend accounting across all
-helper calls and expose coverage in the existing views.
+Waku's model client appends usage to `.waku/usage.jsonl`, an append-only ledger
+that a demo reset never wipes. It covers answer, retrieval gate, compaction,
+consolidation and graph/helper stages through that client. The installed judge
+wrappers use a separate judge scope. Each SDK invocation records model, provider,
+request hash, duration, cache usage and session/turn identity when available.
+Explicit adapter retries count separately; internal SDK HTTP retries do not.
+Guard rejections before dispatch record no paid invocation.
+
+The **Ops** and **Memory** views show stage counts, measured subtotals, unknown
+usage, checkpoints and evidence IDs. Missing usage or unsupported price provenance
+leaves strict totals unknown. The older pricing charts remain estimates and cannot
+establish complete cost. Independent legacy arenas and external subprocesses are
+outside the Waku-client ledger contract.
 
 ## Tracing is always on
 

@@ -1,11 +1,5 @@
 # Status
 
-**What is true right now.** Rewritten whole when it changes, never appended to
-— a status file that grows is a changelog, and git already is one.
-
-Read this before opening a PR or filing an issue: most of what is already
-known-broken is below, and half of it already has a fix in flight.
-
 **Last updated:** 2026-09-29
 
 ---
@@ -17,7 +11,7 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**1165 checks pass in the isolated offline suite**, with no API key; 63 checks
+**1215 checks pass in the isolated offline suite**, with no API key; 63 checks
 skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
@@ -62,6 +56,14 @@ relevant-record cases still miss. Reserved average recall remains 66.7% on both
 policies, and short-record metadata increases overhead. Real answer quality and
 cost remain unmeasured. The default retrieval policy remains `legacy`; see
 [the V4 report](v4-baseline.md) for configuration, results and limits.
+
+**V5 adds combined evaluation and attributed usage.** All 720 scripted runs
+complete across four policies and five repetitions. Ops and Memory show context,
+checkpoints, evidence IDs and runtime/judge coverage. Explicit live execution,
+calibration and release checks are implemented; live acceptance remains incomplete.
+D reduces estimated input 24.8% versus A but increases local latency. No real
+quality or cost improvement is established; defaults stay unchanged. See
+[the V5 report](v5-baseline.md), including the full-run provenance limitation.
 
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.
