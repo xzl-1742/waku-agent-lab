@@ -215,7 +215,7 @@ class Waku:
                 hint = "\n".join(item["text"] for items in summary.values() for item in items)
             turns = self.checkpoints.sources(self.session.session_id, checkpoint["covered_through"] if checkpoint else 0,
                                             self._turn_record.turn_id)
-            dialogue = [message for turn in turns[-2:] for message in turn.messages if isinstance(message["content"], str)]
+            dialogue = [message for turn in turns[-min(2, self.settings.history_turns):] for message in turn.messages]
         system = self.session.build_system(user_message, notify=notify, checkpoint_hint=hint, dialogue=dialogue)
         # Start with the last N exchanges; the loop additionally checks total
         # input size under the budget policy. Original records stay in state.db.

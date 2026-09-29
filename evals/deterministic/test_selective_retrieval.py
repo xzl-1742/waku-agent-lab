@@ -84,6 +84,35 @@ def test_dialogue_reaches_gate_from_session(tmp_path):
     assert payload["dialogue"][0]["content"] == "We discussed Alex."
 
 
+def test_compact_gate_keeps_assistant_text_blocks(tmp_path):
+    skip = response([text_block(json.dumps(decision(False, "")))])
+    app = app_at(tmp_path, [skip, response([text_block("Alex picked Tuesday.")]),
+                           skip, response([text_block("His name is Alex.")])], context_policy="compact",
+                 retrieval_gate_tokens=4096)
+    calls = []
+    original = app.memory.client.messages.create
+    app.memory.client.messages.create = lambda **kwargs: calls.append(kwargs) or original(**kwargs)
+    app.respond("Who picked the date?")
+    app.respond("What about him?")
+    gates = [c for c in calls if isinstance(c["messages"][0]["content"], str)
+             and c["messages"][0]["content"].startswith(PROMPT)]
+    data = json.loads(gates[-1]["messages"][0]["content"][len(PROMPT):])
+    assert {"role": "assistant", "content": "Alex picked Tuesday."} in data["dialogue"]
+
+
+def test_gate_hints_exclude_tool_payloads_and_reasoning(tmp_path):
+    app = app_at(tmp_path)
+    calls = []
+    app.memory.client.messages.create = lambda **kwargs: calls.append(kwargs) or response([text_block(json.dumps(decision()))])
+    dialogue = [{"role": "assistant", "content": [{"type": "text", "text": "Alex picked Tuesday."},
+                                                 {"type": "thinking", "thinking": "private reasoning"},
+                                                 {"type": "tool_use", "input": {"value": "tool arguments"}}]},
+                {"role": "user", "content": [{"type": "tool_result", "content": "tool output"}]}]
+    decide(app.memory, "What about him?", dialogue, "", lambda *args: None)
+    data = json.loads(calls[0]["messages"][0]["content"][len(PROMPT):])
+    assert data["dialogue"] == [{"role": "assistant", "content": "Alex picked Tuesday."}]
+
+
 @pytest.mark.parametrize("query,content", [("张伟", "昨天和张伟讨论部署。"), ("王敏", "我们与王敏约定周五验收。"),
                                           ("Muller", "Müller prefers mornings."), ("Ａｌｅｘ", "Alex likes tea."),
                                           ("Alex meeting", "Alex meets us Tuesday at 10."),

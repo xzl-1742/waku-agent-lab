@@ -54,8 +54,14 @@ def decide(memory, message, dialogue, checkpoint, notify):
     budget = getattr(memory.client, "context_budget", None) or ContextBudget.from_settings(replace(settings, context_policy="budget"))
     data = {"message": policy.clean_text(message), "dialogue": [], "checkpoint": ""}
     if settings.history_turns:
-        data["dialogue"] = [{"role": m["role"], "content": prefix(policy.clean_text(m["content"]), 768)}
-                            for m in dialogue[-4:] if isinstance(m.get("content"), str)]
+        for entry in dialogue:
+            content = entry.get("content")
+            if isinstance(content, list):
+                content = "\n".join(block["text"] for block in content
+                                    if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str))
+            if isinstance(content, str) and content and entry.get("role") in ("user", "assistant"):
+                data["dialogue"].append({"role": entry["role"], "content": prefix(policy.clean_text(content), 768)})
+        data["dialogue"] = data["dialogue"][-4:]
         data["checkpoint"] = prefix(policy.clean_text(checkpoint), 1536)
 
     def request():
