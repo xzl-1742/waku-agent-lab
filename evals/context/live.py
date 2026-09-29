@@ -26,7 +26,7 @@ def plan(split="reserved", trials=5):
             "tools": ["save_note", "manage_memory", "record_action", "read_fixture"]}
 
 
-def execute(args):
+def execute(args, *, client_factory=None):
     # Only an explicit command may reach this point. Discovery of a user's
     # dotenv is disabled before configuration or provider modules are imported.
     if not args.live:
@@ -46,6 +46,14 @@ def execute(args):
     from waku.ops.usage import summarize
     from waku.tools.registry import Tool
 
+    make_client = client_factory or get_client
+    exploratory = getattr(args, "exploratory", False)
+    cases = [c for c in load_cases() if args.split == "all" or c["split"] == args.split]
+    selected = set(getattr(args, "case_ids", None) or [])
+    if selected:
+        if not selected <= {c["id"] for c in cases}:
+            raise ValueError("Unknown case IDs for the selected split")
+        cases = [c for c in cases if c["id"] in selected]
     provider = PROVIDERS.get(args.provider)
     if provider is None:
         raise ValueError("Unknown provider")
@@ -53,7 +61,7 @@ def execute(args):
     if not credential:
         raise ValueError(f"Set {provider.key_env} in the process environment; dotenv loading is disabled")
     labels = json.loads(args.calibration.read_text(encoding="utf-8"))
-    if labels.get("reviewed") is not True or not labels.get("reviewer") or not labels.get("cases"):
+    if not exploratory and (labels.get("reviewed") is not True or not labels.get("reviewer") or not labels.get("cases")):
         raise ValueError("Calibration needs an independent reviewer and labelled examples")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -117,20 +125,19 @@ def execute(args):
         judge_settings.ensure_home()
         judge_rows = []
         try:
-            judge = LimitedClient(UsageClient(get_client(judge_settings), judge_settings,
+            judge = LimitedClient(UsageClient(make_client(judge_settings), judge_settings,
                                              lambda row: record_usage(row, judge_rows)))
         except Exception as exc:
             return save({"status": "incomplete", "quality_status": "incomplete", "error_type": type(exc).__name__,
                          "reason": "Judge client initialization failed", "promotion_status": "incomplete"})
-        calibration = calibrate(judge, args.judge_model, labels["cases"], reviewed=True,
+        calibration = calibrate(judge, args.judge_model, labels["cases"], reviewed=not exploratory,
                                 required_kinds={"answer", "checkpoint", "memory_support", "memory_recall"})
         calibration["labels_sha256"] = digest(labels)
-        calibration["reviewer"] = labels["reviewer"]
+        calibration["reviewer"] = labels.get("reviewer", "")
         (output / "calibration.json").write_text(json.dumps(calibration, ensure_ascii=False, indent=2), encoding="utf-8")
-        if calibration["status"] != "complete":
+        if calibration["status"] != "complete" and not exploratory:
             return save({"status": "incomplete", "reason": "Judge calibration did not pass", "calibration": calibration,
                     "usage": summarize(judge_rows, rates), "promotion_status": "incomplete"})
-        cases = [c for c in load_cases() if args.split == "all" or c["split"] == args.split]
         import random
         order = [(case, arm, trial) for case in cases for trial in range(1, args.trials + 1) for arm in config["arms"]]
         random.Random(config["seed"]).shuffle(order)
@@ -141,7 +148,7 @@ def execute(args):
             configured = settings(home, arm)
             def build(configured=configured, rows=rows, actions=actions, case=case):
                 configured.ensure_home()
-                client = get_client(configured)
+                client = make_client(configured)
                 app = Waku(configured, client=client)
                 tracer = Tracer(configured)
                 def record(row):
@@ -250,14 +257,15 @@ def execute(args):
                 secondary = json.loads(args.second_provider.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 secondary_error = type(exc).__name__
-        report = {"schema_version": 2, "runner": "live", "experiment": config["experiment"], "manifest_sha256": digest(config),
+        report = {"schema_version": 2, "runner": "live-exploratory" if exploratory else "live",
+                "experiment": config["experiment"], "manifest_sha256": digest(config),
                 "source": source, "source_end": final_source, "source_stable": source == final_source,
                 "provider": args.provider, "models": {"answer": args.model, "small": args.small_model, "judge": args.judge_model},
                 "rates": [{"provider": p, "model": m, **r} for (p, m), r in rates.items()],
                 "status": "complete" if len(results) == len(order) and all(not r["error_type"] for r in results) else "incomplete",
                 "trials": args.trials, "expected_runs": len(order), "actual_runs": len(results), "cases": results,
                 "calibration": calibration, "usage": summarize(all_rows + judge_rows, rates),
-                "quality_status": "complete" if len(results) == len(order) and all(r["verdict"] and not r["error_type"] for r in results) else "incomplete",
+                "quality_status": "complete" if not exploratory and len(results) == len(order) and all(r["verdict"] and not r["error_type"] for r in results) else "incomplete",
                 "second_provider": second_provider_status(secondary, args.provider),
                 "second_provider_evidence": secondary,
                 "second_provider_error": secondary_error,
@@ -271,6 +279,8 @@ def execute(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--exploratory", action="store_true", help="Allow provisional judging; never supplies release evidence")
+    parser.add_argument("--case", dest="case_ids", action="append", help="Run a named case from the selected split")
     parser.add_argument("--split", choices=("development", "reserved", "all"), default="reserved")
     parser.add_argument("--trials", type=int, default=5)
     parser.add_argument("--provider")

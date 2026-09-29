@@ -52,7 +52,7 @@ def test_live_aggregation_does_not_replace_unknown_tokens_with_estimates():
     assert result["quality_metrics"]["runtime_reduction_lower_95"] is None
 
 
-@pytest.mark.parametrize("mode", ["complete", "allowance", "startup", "stale_memory", "action"])
+@pytest.mark.parametrize("mode", ["complete", "allowance", "startup", "stale_memory", "action", "exploratory"])
 def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_path, monkeypatch, mode):
     import dotenv
     import dotenv.main
@@ -77,7 +77,8 @@ def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_p
     monkeypatch.setattr(live, "manifest", lambda: {"experiment": "context-memory-v5", "seed": 1, "capacity": 32768,
         "arms": {"A": {"context_policy": "window", "memory_policy": "legacy", "retrieval_policy": "legacy"}}})
     monkeypatch.setattr(live, "expand", lambda case: [{"op": "turn", "message": "What limit?"}])
-    monkeypatch.setattr(quality, "calibrate", lambda *a, **k: {"status": "complete", "agreement": 1})
+    if mode != "exploratory":
+        monkeypatch.setattr(quality, "calibrate", lambda *a, **k: {"status": "complete", "agreement": 1})
     def grade(client, model, item):
         bad = mode == "stale_memory" and "stored fact:" in item["task"]
         return {"task_success": not bad, "stale_assertion": bad, "unsupported_assertion": False, "reason": "Offline test"}
@@ -98,10 +99,10 @@ def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_p
             self.memory.facts.add("project", "limit 10", source="consolidation")
         monkeypatch.setattr(Waku, "__init__", initialize)
     labels = tmp_path / "calibration.json"
-    labels.write_text(json.dumps({"reviewed": True, "reviewer": "synthetic test", "cases": [{"id": "test"}]}))
+    labels.write_text(json.dumps({"reviewed": mode != "exploratory", "reviewer": "synthetic test", "cases": [{"id": "test"}]}))
     result = execute(SimpleNamespace(live=True, provider="anthropic", model="scripted-main", small_model="scripted-small",
         judge_model="scripted-judge", calibration=labels, output=tmp_path / "result", split="development", trials=1,
-        max_calls=2 if mode == "allowance" else 10))
+        max_calls=2 if mode == "allowance" else 10, exploratory=mode == "exploratory", case_ids=["synthetic"]))
     assert result["actual_runs"] == 1
     row = result["cases"][0]
     assert json.loads((tmp_path / "result" / "report.json").read_text())["status"] == result["status"]
@@ -117,6 +118,9 @@ def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_p
         elif mode == "action":
             assert row["actual_actions"] == ["local-generated-receipt"] and row["action_check"]
     assert result["promotion_status"] == "incomplete"
+    if mode == "exploratory":
+        assert result["runner"] == "live-exploratory"
+        assert result["calibration"]["status"] == result["quality_status"] == "incomplete"
 
 
 def test_live_price_artifacts_require_dated_provenance_and_valid_numbers(tmp_path):

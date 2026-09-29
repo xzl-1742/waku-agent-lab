@@ -188,6 +188,26 @@ tokens; `cached_input` and `cache_creation` are required when those usages occur
 The report retains this provenance. Optional `--second-provider` accepts the
 other provider's live report; coverage and critical outcomes are checked.
 
+For a small development pilot, `python -m evals.context.deepseek_pilot --live`
+uses `deepseek-flash` with thinking disabled and a default CNY 5 allowance.
+It reads only `DEEPSEEK_API_KEY` from the process environment. Without `--live`,
+it prints a plan without reading credentials. The default selects six short
+development cases across all four arms; repeat `--case ID` to select others.
+Choose a fresh `--output` directory for each run.
+
+The pilot disables SDK retries and redirects. Before each request, it reserves
+the full advertised context plus maximum output at the official peak prices
+checked on 2026-09-29. Provider usage releases unused reserves without assuming
+cache discounts. A transport error or missing usage stops further paid calls.
+`spend.json` records CNY separately from the existing USD ledger, and
+`deepseek-usage.jsonl` retains the provider's cache counts. Prices must be
+rechecked before reusing this dated guard. Balance changes may include other
+activity on the same account.
+
+The underlying live runner supports `--exploratory` and repeated `--case ID`.
+Exploratory runs use provisional judge opinions and retain incomplete calibration,
+quality and promotion status. They cannot supply release evidence.
+
 To show a completed report in a selected dashboard, run
 `python -m evals.context.publish REPORT.json --home PATH_TO_SELECTED_WAKU_HOME`.
 This replaces only `comparison_report.json` in that explicitly selected home.
