@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "experiment": "context-memory-v5",
+  "fixture_sha256": "bab4c5fd9911bf3692681a1bd4725cade9c14018059a53910dd5427d03ceea1f",
+  "arms": {
+    "A": {"context_policy": "window", "memory_policy": "legacy", "retrieval_policy": "legacy"},
+    "B": {"context_policy": "compact", "memory_policy": "legacy", "retrieval_policy": "legacy"},
+    "C": {"context_policy": "window", "memory_policy": "lifecycle", "retrieval_policy": "selective"},
+    "D": {"context_policy": "compact", "memory_policy": "lifecycle", "retrieval_policy": "selective"}
+  },
+  "trials": 5,
+  "seed": 20260929,
+  "primary_pair": ["D", "A"],
+  "secondary_pairs": [["B", "A"], ["C", "A"]],
+  "capacity": 32768,
+  "critical_families": ["corrections", "forgetting", "sessions", "tools"],
+  "promotion": {
+    "long_task_gain": 0.10,
+    "alternative_runtime_reduction": 0.20,
+    "baseline_quality_ceiling": 0.90,
+    "maximum_short_task_regression": 0.03,
+    "maximum_short_latency_increase": 0.10,
+    "critical_failures": 0,
+    "minimum_judge_calibration_agreement": 0.90,
+    "required_second_provider": true
+  }
+}

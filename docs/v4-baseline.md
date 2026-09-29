@@ -116,8 +116,10 @@ All 24 selective cases satisfy the declared critical checks: forbidden evidence,
 the initial evidence budget and specified source ordering. A complete execution
 does not imply complete recall. All three paraphrase cases still miss their
 relevant records. The reserved stale-record case excludes the old coffee
-preference but also misses the current tea preference when queried with the old
-value. These four misses remain visible in the report. Reserved average recall
+preference but also misses the current tea preference: the query says
+`Sam preference` while the record says `Sam prefers tea`. This is a lexical-form
+mismatch, not a query containing the old value. These four misses remain visible
+in the report. Reserved average recall
 does not improve, so these results do not justify changing the default.
 
 The relevant-byte share falls because IDs, offsets and other metadata dominate
@@ -129,7 +131,7 @@ neither an answer model nor a semantic judge runs in this comparison.
 
 ## Limits and next comparison
 
-Keyword matching still lacks general semantic similarity. The reserved misses
+Keyword matching still lacks general semantic similarity and some word forms. The reserved misses
 justify a separately frozen hybrid-retrieval experiment. They do not establish
 that an embedding model would improve answers enough to cover its cost. That
 optional experiment and real-model evaluation remain V5 work; no embedding

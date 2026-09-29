@@ -348,6 +348,40 @@ retrieval to the default or claim measured answer quality.
 
 V5 selects a measured configuration and packages the operational evidence needed to maintain it.
 
+### V5 implementation decisions
+
+The versioned V5 manifest defines A as window/legacy/legacy, B as
+compact/legacy/legacy, C as window/lifecycle/selective and D as
+compact/lifecycle/selective (context/write/retrieval). Historical V1 B and V2 B2
+labels keep their existing meanings. The frozen 36-case bank supplies a shared
+execution comparison; its scripted replies establish availability and state
+checks, not learned task quality. Repeated deterministic trials measure coverage
+and local timing, not independent model samples.
+
+One accounting owner records SDK invocations, including explicit adapter retries,
+below request guards and before response interpretation. SDK-internal HTTP
+retries remain outside that boundary. Stage, model, provider, session, turn,
+cache counters, failures and unmeasured usage remain visible. Judge spend stays
+separate. Unknown usage or unsupported rates cannot become zero cost.
+
+The primary paired comparison is D minus A, with B minus A and C minus A as
+secondary comparisons. Uncertainty resamples scenarios within families while
+retaining paired arms and repetitions. A failed critical scenario cannot be
+hidden by mean improvement. Live trials, independent judge calibration and
+second-provider evidence remain required for promotion; an offline run leaves
+those fields incomplete. Defaults do not change on scripted evidence.
+
+The existing Ops and Memory views show bounded trace projections, including
+context occupancy estimates, compaction history, retrieved IDs and comparison
+coverage. Turn identifiers prevent interleaved sessions from sharing evidence.
+Compatibility cases cover restart, failed migration/retry, competing sessions
+and disabling/re-enabling all three policies without resurrecting suppression.
+
+V4 reserved cases are now regression data. Optional hybrid experiments use a
+separate frozen fixture and remain outside the four primary arms. Synthetic
+expansions or vectors can verify fusion mechanics but cannot demonstrate semantic
+quality or justify a production default.
+
 ### Changes
 
 1. Run the A/B/C/D comparisons in section 10 with fixed fixtures, prompts, models and store configuration.
