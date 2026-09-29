@@ -348,38 +348,11 @@ def collect() -> dict:
                 events.append(json.loads(line))
             except json.JSONDecodeError:
                 continue
-    turns, current, wake_scans = [], None, []
-    for ev in events:
-        kind = ev.get("type")
-        if kind == "turn_start":
-            current = {"user_message": ev.get("user_message"), "ts": ev.get("ts"),
-                       "gate": None, "llm_calls": [], "tools": [], "reply": None}
-        elif kind == "wake_scan":
-            wake_scans.append(ev)
-        elif current is not None:
-            if kind == "gate":
-                current["gate"] = ev
-            elif kind == "route":
-                current["graph"] = {"workflow": ev.get("workflow"),
-                                    "route": "quick" if ev.get("target") == "quick_reply" else "full",
-                                    "reason": (current.get("graph") or {}).get("reason", "")}
-            elif kind == "triage":
-                current.setdefault("graph", {})["reason"] = ev.get("reason", "")
-            elif kind == "llm":
-                current["llm_calls"].append(ev)
-            elif kind == "tool":
-                current["tools"].append(ev)
-            elif kind == "consolidation":
-                current["consolidation"] = ev
-            elif kind == "turn_end":
-                current["reply"] = ev.get("reply")
-                current["iterations"] = ev.get("iterations")
-                turns.append(current)
-                current = None
-    if current is not None:  # a turn that never ended = the smoking gun for hangs
-        current["reply"] = "TURN NEVER FINISHED — check for a hang after this point"
-        current["unfinished"] = True
-        turns.append(current)
+    from waku.ops.observability import group_turns, projection
+    from waku.ops.usage import strict_cost, summarize
+
+    turns = group_turns(events)
+    wake_scans = [e for e in events if e.get("type") == "wake_scan"]
 
     # --- derive per-turn latency + dollar cost (the ops numbers humans feel)
     if settings.base_url or settings.provider == "openrouter":
@@ -387,18 +360,22 @@ def collect() -> dict:
     price_in, price_out = price_for(settings.provider, settings.model or "")
     for t in turns:
         start, end = _parse_ts(t["ts"]), None
-        last = t["llm_calls"][-1]["ts"] if t["llm_calls"] else None
+        last = t.get("ended_at") or (t["llm_calls"][-1]["ts"] if t["llm_calls"] else None)
         end = _parse_ts(last)
         t["latency_ms"] = int((end - start).total_seconds() * 1000) if start and end else None
         tin = sum(c.get("usage", {}).get("in", 0) for c in t["llm_calls"])
         tout = sum(c.get("usage", {}).get("out", 0) for c in t["llm_calls"])
         t["cost"] = tin / 1e6 * price_in + tout / 1e6 * price_out
+        if t["model_calls"]:
+            t["measured_usage"] = summarize(t["model_calls"])
+            costs = [strict_cost(r) for r in t["model_calls"]]
+            t["cost"] = sum(costs) if all(c is not None for c in costs) else None
         for x in t["tools"]:
             x["status"] = _tool_status(x.get("output", ""))
             x["summary"] = (x.get("output", "") or "").split(". ")[0][:120]
 
     latencies = sorted(t["latency_ms"] for t in turns if t["latency_ms"] is not None)
-    total_cost = sum(t["cost"] for t in turns)
+    total_cost = sum(t["cost"] or 0 for t in turns)
 
     def pct(p: float) -> int:
         return latencies[min(len(latencies) - 1, int(len(latencies) * p))] if latencies else 0
@@ -533,6 +510,7 @@ def collect() -> dict:
         "connections": [asdict(view) for view in list_connections()],
         "tools": tools_info(),
         "usage": usage_summary(home),
+        "observability": projection(events, conn, settings),
     }
 
 

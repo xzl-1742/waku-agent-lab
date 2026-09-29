@@ -887,3 +887,6 @@ dialog.dialog :focus-visible{outline:var(--focus-ring-width) solid var(--accent)
     line-height:var(--leading-snug);pointer-events:none}
   .ja-asks{margin-top:var(--spacing);max-width:52ch}
   .ja-conf{margin-left:var(--spacing);opacity:.55}
+/* Observation tables stay readable beside the chat dock at narrow widths. */
+.observations .tbl { table-layout: fixed; width: 100%; }
+.observations .tbl th, .observations .tbl td { white-space: normal; overflow-wrap: anywhere; }

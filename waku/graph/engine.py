@@ -31,6 +31,7 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -167,7 +168,7 @@ def run_graph(graph: Graph, state: dict, observer: Observer | None = None,
             results = [run_one(wave[0])]
         else:
             with ThreadPoolExecutor(max_workers=len(wave)) as pool:
-                results = [f.result() for f in [pool.submit(run_one, n) for n in wave]]
+                results = [f.result() for f in [pool.submit(copy_context().run, run_one, n) for n in wave]]
 
         jumps: list[str] = []
         wave_writes: dict[str, str] = {}

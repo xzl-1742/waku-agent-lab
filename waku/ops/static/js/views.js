@@ -5,6 +5,42 @@
 // --- sub-tabs: keep long pages short by splitting them into hash-routed tabs
 // (#memory/semantic, #database/facts). Each tab is a plain link, so it's
 // bookmarkable and the architecture cards can deep-link straight to one.
+function observationCards(d, memoryOnly=false){
+  const o=d.observability || {}, events=o.events || [], policies=o.policies || {};
+  let h=uiCard(`<span class="meta">Context: ${esc(policies.context_policy||"unknown")} · Memory: ${esc(policies.memory_policy||"unknown")} · Retrieval: ${esc(policies.retrieval_policy||"unknown")}</span>`, {title:"Active policies"});
+  const contexts=events.filter(e=>e.type==="context").slice(0,6);
+  if(!memoryOnly){
+    h+=uiCard(uiTable(["Session / model","Estimated input / allowance","Capacity source"], contexts.map(e=>[
+      `${esc(e.session_id||"unattributed")} / ${esc(e.model||"")}`,
+      `${e.estimated_input_tokens??"—"} / ${e.input_budget_tokens??"—"}`,
+      esc(e.capacity_source||"unknown")]), {empty:"No context measurements yet."}), {title:"Context occupancy estimates"});
+  }
+  const checkpoints=o.checkpoints||[];
+  h+=uiCard(uiTable(["Session","Revision","Source boundary","Validity"],checkpoints.slice(0,8).map(c=>[
+    esc(c.session_id),String(c.revision),String(c.covered_through),uiBadge(c.valid?"eligible":"invalidated",c.valid?"ok":"warn")
+  ]),{empty:"No saved compaction checkpoints yet."}),{title:"Compaction history"});
+  const evidence=events.filter(e=>e.type==="retrieval"||e.type==="retrieval_detail").slice(0,8);
+  h+=uiCard(uiTable(["Session / stage","Outcome","Delivered memory IDs","Estimated tokens"],evidence.map(e=>[
+    `${esc(e.session_id||"unattributed")} / ${esc(e.stage||"detail")}`,esc(e.status||"unknown"),
+    esc((e.delivered_ids|| (e.id!=null?[[e.kind,e.id]]:[])).map(id=>id.join(":")).join(", ")||"none"),String(e.estimated_tokens??"—")
+  ]),{empty:"No selective retrieval evidence yet."}),{title:"Memory evidence"});
+  const failures=events.filter(e=>e.type==="compaction_failed"||e.status==="failed"||e.status==="error").slice(0,5);
+  if(failures.length)h+=uiCard(uiTable(["Stage","Session","Outcome"],failures.map(e=>[esc(e.stage||e.type),esc(e.session_id||"unattributed"),uiBadge(esc(e.status||"failed"),"bad")])),{title:"Recent failures"});
+  if(memoryOnly)return `<section class="observations">${h}</section>`;
+  const usage=(d.usage||{}).measured;
+  if(usage){
+    h+=uiCard(uiTable(["Scope","Calls","Unmeasured calls","Complete cost"],["runtime","judge"].map(scope=>[
+      scope,String(usage[scope].calls),String(usage[scope].unmeasured_calls),usage[scope].cost_usd==null?"Unmeasured":money(usage[scope].cost_usd)
+    ])),{title:"Runtime and judge usage",footer:"Calls include explicit retries. Hidden SDK retries are not counted."});
+    h+=uiCard(uiTable(["Runtime stage","Calls"],Object.entries(usage.runtime.by_stage||{}).map(([k,v])=>[esc(k),String(v)])),{title:"Calls by stage"});
+  }
+  const c=o.comparison;
+  h+=uiCard(c?`${uiBadge(esc(c.status||"unknown"),c.status==="failed"?"bad":"neutral")} <span class="meta">Quality: ${esc(c.quality_status||"incomplete")} · Promotion: ${esc(c.promotion_status||"incomplete")} · Trials: ${c.trials??"—"}</span>`+
+    uiTable(["Configuration","Completed / runs","Critical failures"],Object.entries((c.summary||{}).arms||{}).map(([a,r])=>[esc(a),`${r.complete} / ${r.runs}`,String((r.critical_failures||[]).length)])):
+    `<span class="empty">No combined evaluation summary has been imported.</span>`,{title:"Combined evaluation"});
+  return `<section class="observations">${h}</section>`;
+}
+
 function subtabBar(view, tabs, active){
   return uiTabs(tabs.map(([key,label,n]) =>
     ({label: esc(label), href: `#${view}/${key}`, on: key===active, count: n})));
@@ -502,7 +538,7 @@ const VIEWS = {
     if (sub==="skills") return h + memSkills(d);
     if (sub==="soul") return h + memSoul(d);
     if (sub==="consolidation") return h + memConsolidation(d);
-    return h + memOverview(d);
+    return h + memOverview(d) + observationCards(d,true);
   },
   settings(d){
     const st = d.settings || {providers:[]};
@@ -607,19 +643,21 @@ const VIEWS = {
     const s = d.stats;
     const u = d.usage || {calls:0,total_in:0,total_out:0,total_cost:0,by_day:[],by_provider:[]};
     let h = uiStatBand([
-        {label:"spent", value:money(u.total_cost), sub:"all-time", tone:"ok"},
-        {label:"tokens in", value:u.total_in.toLocaleString(), sub:"all-time"},
-        {label:"tokens out", value:u.total_out.toLocaleString(), sub:"all-time"},
+        {label:"cost", value:u.measured?.runtime.cost_usd==null?"Unmeasured":money(u.measured.runtime.cost_usd), sub:"complete runtime cost"},
+        {label:"tokens in", value:u.measured?.runtime.input_tokens==null?"Unmeasured":u.measured.runtime.input_tokens.toLocaleString(), sub:`known subtotal: ${u.total_in.toLocaleString()}`},
+        {label:"tokens out", value:u.measured?.runtime.output_tokens==null?"Unmeasured":u.measured.runtime.output_tokens.toLocaleString(), sub:`known subtotal: ${u.total_out.toLocaleString()}`},
         {label:"LLM calls", value:u.calls.toLocaleString()},
         {label:"avg turn", value:secs(s.latency_avg)}, {label:"tool errors", value:`${s.tool_errors}`},
       ]);
+    h += observationCards(d);
     // Eval verdicts are "pass" / "fail" / anything else (skipped, not run).
     const verdict = v => v === "pass" ? "ok" : v === "fail" ? "bad" : "neutral";
 
     h += `<h2>Spend <span class="meta" style="font-weight:400">· permanent ledger — survives a demo reset</span></h2>`;
     h += uiCard(`<span class="r prose">Every LLM call's tokens are logged to
       <code>.waku/usage.jsonl</code> (append-only, never wiped). Dollar cost is estimated from tokens
-      × current pricing — the tokens are the ground truth.</span>`,
+      × current pricing. Legacy charts show known subtotals and approximate rates;
+      missing usage is reported above and is not a measured zero.</span>`,
       {footer: reveal("usage.jsonl","open usage.jsonl")});
     if ((u.by_provider||[]).length){
       h += table(["provider","LLM calls","tokens in","tokens out","cost (est)"], u.by_provider.map(p =>
@@ -669,7 +707,7 @@ const VIEWS = {
     h += `<h2>Slowest turns</h2>`;
     const slow = [...d.turns].filter(t=>t.latency_ms!=null).sort((a,b)=>b.latency_ms-a.latency_ms).slice(0,6);
     h += table(["turn","latency","cost","tools"], slow.map(t =>
-      `<tr><td>${esc((t.user_message||"").slice(0,48))}</td><td class="meta">${secs(t.latency_ms)}</td><td class="meta">${money(t.cost||0)}</td><td class="meta">${(t.tools||[]).map(x=>x.tool).join(", ")||"—"}</td></tr>`));
+      `<tr><td>${esc((t.user_message||"").slice(0,48))}</td><td class="meta">${secs(t.latency_ms)}</td><td class="meta">${t.cost==null?"Unmeasured":money(t.cost)}</td><td class="meta">${(t.tools||[]).map(x=>x.tool).join(", ")||"—"}</td></tr>`));
 
     h += `<h2>Tracing <span class="meta" style="font-weight:400">· every turn as JSONL, always on</span></h2>`;
     if ((d.trace_errors||[]).length){
