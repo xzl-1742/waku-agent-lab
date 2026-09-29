@@ -61,6 +61,8 @@ class ScenarioClient:
             text = json.dumps({"retrieve": bool(query), "query": query, "reason": "fixture"})
         elif stage == "consolidation":
             text = '{"facts": [], "episode": ""}'
+        elif stage == "lifecycle_consolidation":
+            text = '{"facts": [], "episode": null}'
         elif stage == "compaction":
             from evals.context.summary import summarize
 
@@ -78,7 +80,9 @@ def build_app(home, client, tool_calls, output_kib, configuration="A", capacity=
                     small_model="scripted-small", history_turns=12, consolidate_every=6,
                     retrieval_top_k=4, max_iterations=10, max_tokens=8192,
                     semantic_store="sqlite", episodic_store="sqlite",
-                    context_policy={"A": "window", "B": "budget", "B2": "compact"}[configuration],
+                    context_policy={"A": "window", "B": "budget", "B2": "compact",
+                                    "V3-window": "window", "V3-compact": "compact"}[configuration],
+                    memory_policy="lifecycle" if configuration.startswith("V3-") else "legacy",
                     context_window_tokens=capacity, small_context_window_tokens=capacity,
                     experimental=False, gh_tool=False)
     app.conn.execute("CREATE TABLE IF NOT EXISTS eval_actions (receipt TEXT NOT NULL)")
@@ -104,8 +108,8 @@ def run_case(case, home, configuration="A", capacity=32768):
         Path(os.environ["WAKU_EVAL_ROOT"]).resolve()
     ):
         raise RuntimeError("Run context baselines through the offline isolation bootstrap")
-    if configuration not in ("A", "B", "B2"):
-        raise ValueError("Only configurations A, B and B2 are implemented")
+    if configuration not in ("A", "B", "B2", "V3-window", "V3-compact"):
+        raise ValueError("Unknown implemented configuration")
     script = ScenarioClient()
     client = RecordingClient(script, synthetic=True)
     tool_calls, turn_seconds, checks = [], [], []
@@ -131,14 +135,21 @@ def run_case(case, home, configuration="A", capacity=32768):
                 elif step["op"] == "turn":
                     script.prepare(step)
                     turn_start = time.perf_counter()
-                    app.respond(step["message"], stream=False, source="eval", observer=observe)
+                    generation = app.memory.lifecycle.generation
+                    result = app.respond(step["message"], stream=False, source="eval", observer=observe)
+                    if app.memory.lifecycle.generation > generation:
+                        # Lifecycle mutations intentionally finish without the
+                        # scripted model's final reply. Require the real receipt.
+                        if "memory" not in result.reply.lower() or len(script.pending) != 1:
+                            raise ValueError("Missing deterministic mutation acknowledgement")
+                        script.pending.pop()
                     turn_seconds.append(time.perf_counter() - turn_start)
                     if script.pending:
                         raise ValueError("Model response script was not fully consumed")
                 else:
                     raise ValueError(f"Unknown scenario operation: {step['op']}")
         final_input = client.last_main_input
-        facts = [r["content"] for r in app.conn.execute("SELECT content FROM facts ORDER BY id")]
+        facts = [r["content"] for r in app.conn.execute("SELECT content FROM facts WHERE validity='active' ORDER BY id")]
         actions = [r["receipt"] for r in app.conn.execute("SELECT receipt FROM eval_actions")]
         chats = app.conn.execute("SELECT COUNT(*) FROM chat_log").fetchone()[0]
         expected_facts = ([case["current"]] if case["family"] in ("corrections", "retrieval") else [])
@@ -155,7 +166,11 @@ def run_case(case, home, configuration="A", capacity=32768):
             {"name": "session_transcript_isolation",
              "passed": "OTHER_SESSION_SENTINEL" not in final_input},
         ]
-        if configuration in ("B", "B2"):
+        if configuration.startswith("V3-") and case["family"] in ("corrections", "forgetting"):
+            checks.append({"name": "suppressed_fact_absent", "passed": case["old"] not in final_input})
+        if configuration.startswith("V3-") and case["family"] == "corrections":
+            checks.append({"name": "corrected_fact_available", "passed": case["current"] in final_input})
+        if configuration in ("B", "B2", "V3-compact"):
             executions = app.conn.execute("SELECT * FROM tool_executions").fetchall()
             checks.extend([
                 {"name": "request_budgets", "passed": all(
@@ -183,7 +198,7 @@ def run_case(case, home, configuration="A", capacity=32768):
         "usage_source": "synthetic", "model_calls": len(client.calls),
         "calls_by_stage": dict(Counter(c["stage"] for c in client.calls)),
         "stage_seconds": {stage: sum(c["duration_seconds"] for c in client.calls if c["stage"] == stage)
-                          for stage in ("gate", "answer", "consolidation", "compaction")},
+                          for stage in ("gate", "answer", "consolidation", "lifecycle_consolidation", "compaction")},
         "tool_seconds": sum(c["duration_seconds"] for c in tool_calls),
         "duration_seconds": elapsed, "turn_seconds": turn_seconds,
         "calls": client.calls, "tool_calls": tool_calls,
@@ -229,7 +244,7 @@ def make_report(cases, root, configuration="A", capacity=32768):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", choices=["development", "reserved", "all"], default="development")
-    parser.add_argument("--configuration", choices=["A", "B", "B2"], default="A")
+    parser.add_argument("--configuration", choices=["A", "B", "B2", "V3-window", "V3-compact"], default="A")
     parser.add_argument("--capacity", type=int, default=32768)
     parser.add_argument("--output", type=Path, default=Path("eval-results/context-v0.json"))
     args = parser.parse_args(argv)

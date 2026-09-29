@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def request_stage(kwargs):
+    from waku.memory.batches import BATCH_PROMPT
     from waku.memory.consolidation import SUMMARIZER_PROMPT
     from waku.memory.retrieval_gate import GATE_PROMPT
     from waku.runtime.compaction import COMPACTION_PROMPT
@@ -23,7 +24,8 @@ def request_stage(kwargs):
     if "system" in kwargs:
         return "answer"
     content = str(kwargs.get("messages", [{}])[0].get("content", ""))
-    for stage, prompt in (("gate", GATE_PROMPT), ("consolidation", SUMMARIZER_PROMPT)):
+    for stage, prompt in (("gate", GATE_PROMPT), ("consolidation", SUMMARIZER_PROMPT),
+                          ("lifecycle_consolidation", BATCH_PROMPT)):
         if content.startswith(prompt.split("\n\n")[0]):
             return stage
     return "unknown"
@@ -112,27 +114,34 @@ def source_snapshot(root=ROOT):
 
 
 def metadata(configuration="A", capacity=32768):
+    from waku.memory.batches import BATCH_PROMPT
     from waku.memory.consolidation import SUMMARIZER_PROMPT
     from waku.memory.retrieval_gate import GATE_PROMPT
     from waku.runtime.compaction import COMPACTION_PROMPT
     from waku.runtime.session import DEFAULT_SOUL, RESULT_READ_RULE
 
     prompts = {"soul": DEFAULT_SOUL, "gate": GATE_PROMPT, "consolidation": SUMMARIZER_PROMPT}
-    if configuration in ("B", "B2"):
+    if configuration.startswith("V3-"):
+        prompts["consolidation"] = BATCH_PROMPT
+    if configuration in ("B", "B2", "V3-compact"):
         prompts["result_read_rule"] = RESULT_READ_RULE
-    if configuration == "B2":
+    if configuration in ("B2", "V3-compact"):
         prompts["compaction"] = COMPACTION_PROMPT
     references = json.loads(FIXTURES.with_name("references.json").read_text(encoding="utf-8"))
     return {
         "schema_version": 2, "configuration": configuration, "runner": "scripted-offline-v1",
         "python": platform.python_version(), "platform": platform.system(),
         "models": {"answer": "scripted-answer", "gate": "scripted-small",
-                   "consolidation": "scripted-small", "compaction": "scripted-answer" if configuration == "B2" else None,
+                   "consolidation": "scripted-small", "compaction": "scripted-answer" if configuration in ("B2", "V3-compact") else None,
                    "judge": None},
         "settings": {"history_turns": 12, "consolidate_every": 6, "retrieval_top_k": 4,
                      "max_iterations": 10, "max_tokens": 8192, "stream": False,
                      "semantic_store": "sqlite", "episodic_store": "sqlite",
-                     "context_policy": {"A": "window", "B": "budget", "B2": "compact"}[configuration],
+                     "context_policy": {"A": "window", "B": "budget", "B2": "compact",
+                                        "V3-window": "window", "V3-compact": "compact"}[configuration],
+                     "memory_policy": "lifecycle" if configuration.startswith("V3-") else "legacy",
+                     "retrieval_policy": "legacy-gate-fts", "memory_scope": "global",
+                     "consolidation_input_tokens": 16000,
                      "context_window_tokens": capacity, "small_context_window_tokens": capacity,
                      "context_safety_tokens": 1024, "tool_output_bytes": 4096,
                      "compaction_max_tokens": 2048, "compaction_keep_turns": 4, "compaction_max_calls": 32},

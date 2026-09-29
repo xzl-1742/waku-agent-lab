@@ -84,6 +84,18 @@ def test_scripted_summary_uses_only_received_evidence():
     assert "9999" not in json.dumps(result)
 
 
+@pytest.mark.parametrize("configuration", ["V3-window", "V3-compact"])
+@pytest.mark.parametrize("family", ["corrections", "forgetting"])
+def test_lifecycle_baselines_exclude_obsolete_facts(tmp_path, configuration, family):
+    case = next(c for c in CASES if c["family"] == family)
+    result = run_case(case, tmp_path / "home", configuration=configuration)
+    assert result["status"] == "complete", result["errors"]
+    assert not result["evidence_probes"]["obsolete_fact_in_final_input"]
+    if family == "corrections":
+        assert result["evidence_probes"]["current_fact_in_final_input"]
+    assert result["quality_status"] == "incomplete"
+
+
 def test_unknown_fixture_schema_and_family_fail_loudly(tmp_path):
     data = json.loads(FIXTURES.read_text(encoding="utf-8"))
     path = tmp_path / "cases.json"
