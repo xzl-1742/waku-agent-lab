@@ -6,6 +6,7 @@ before a restart or later revision can replace it; judging happens afterwards.
 
 import json
 
+from evals.context.evidence import persisted, receipt, valid_receipts
 from evals.context.fixtures import expand
 
 MEMORY_LIMIT = 200
@@ -46,10 +47,10 @@ def sources(app, session=None, through=None):
 
 def receipts(app, session, through):
     rows = app.conn.execute(
-        "SELECT args_json FROM tool_executions WHERE tool='record_action' AND state='complete' "
-        "AND session_id=? AND turn_id IN (SELECT turn_id FROM session_messages WHERE session_id=? AND id<=?)",
+        "SELECT * FROM tool_executions WHERE state='complete' "
+        "AND session_id=? AND turn_id IN (SELECT turn_id FROM session_messages WHERE session_id=? AND id<=?) ORDER BY rowid",
         (session, session, through))
-    return [json.loads(r["args_json"])["receipt"] for r in rows]
+    return [persisted(app, r) for r in rows]
 
 
 class ProbeCapture:
@@ -59,12 +60,27 @@ class ProbeCapture:
         self.memory = None
         self.inputs = []
         self.persisted = None
+        self.executions = []
 
     def user_message(self, session, text):
         self.inputs.append({"source_id": len(self.inputs) + 1, "session_id": session, "text": text})
 
     def observer(self, app):
         def observe(kind, event):
+            if kind == "tool":
+                try:
+                    if event.get("result_id"):
+                        row = app.conn.execute("SELECT * FROM tool_executions WHERE result_id=? AND session_id=?",
+                            (event["result_id"], app.session.session_id)).fetchone()
+                        if row is None:
+                            raise ValueError("Completed tool event has no persisted execution")
+                        item = persisted(app, row)
+                    else:
+                        item = receipt(event["tool"], event["args"], event["output"], app.session.session_id)
+                    self.executions.append(item)
+                except Exception as exc:
+                    self.errors.append({"kind": "tool", "error_type": type(exc).__name__})
+                return
             if kind != "compaction_completed":
                 return
             identity = {k: event[k] for k in ("session_id", "revision", "covered_through")}
@@ -96,12 +112,12 @@ class ProbeCapture:
             evidence = list(self.inputs)
             self.memory = {"snapshot": [{k: r.get(k) for k in ("id", "subject", "content", "source", "scope", "scope_id")}
                                         for r in facts], "evidence": evidence,
-                           **expectations(self.case, evidence, memory=True), "receipts": list(actions)}
+                           **expectations(self.case, evidence, memory=True), "receipts": list(self.executions)}
         except Exception as exc:
             self.errors.append({"kind": "memory", "error_type": type(exc).__name__})
 
     def report(self):
-        return {"schema_version": 1, "events": self.events, "checkpoints": self.checkpoints,
+        return {"schema_version": 2, "events": self.events, "checkpoints": self.checkpoints,
                 "persisted": self.persisted, "memory": self.memory, "capture_errors": self.errors, "checks": []}
 
 
@@ -125,6 +141,11 @@ def judge_payload(kind, evidence, snapshot):
         "memory_support": "Assess this stored fact: every factual claim must be supported by user evidence or actual receipts. It must not retain a forgotten or superseded value as current.",
         "memory_recall": "Assess these stored facts: they must express ALL required facts with the correct subject. An empty store fails when a fact is required.",
     }
+    if kind in ("memory_support", "memory_recall"):
+        tasks[kind] += " The reply is an actual database snapshot. Assess only subject/content; IDs, source and scope are metadata, not additional factual claims or requests to prove storage. Explicit 'remember X' user text supports X."
+        def project(fact):
+            return {k: fact[k] for k in ("subject", "content")}
+        snapshot = project(snapshot) if kind == "memory_support" else [project(f) for f in snapshot]
     return {"task": tasks[kind], "evidence": {"user_messages": evidence["evidence"],
             "required": evidence["required"] if kind != "memory_support" else [],
             "forbidden": evidence["forbidden"]}, "reply": json.dumps(snapshot, ensure_ascii=False),
@@ -137,7 +158,7 @@ def grade_probes(probes, client, model):
     for key, kind, evidence, snapshot, source in checks(probes):
         item = {"id": key, **judge_payload(kind, evidence, snapshot)}
         blinded, _ = blind([item], 20260929)
-        row = {"id": key, "kind": kind, "source": source, "verdict": None, "error_type": None}
+        row = {"id": key, "kind": kind, "source": source, "input": blinded[0], "verdict": None, "error_type": None}
         try:
             row["verdict"] = grade(client, model, blinded[0])
         except Exception as exc:
@@ -150,7 +171,11 @@ def probe_status(probes, case=None):
     from evals.context.quality import validate
 
     try:
-        if not isinstance(probes, dict) or probes.get("schema_version") != 1 or probes.get("capture_errors") or probes.get("memory") is None:
+        if not isinstance(probes, dict) or probes.get("schema_version") != 2 or probes.get("capture_errors") or probes.get("memory") is None:
+            return "incomplete"
+        if not valid_receipts(probes["memory"]["receipts"]):
+            return "incomplete"
+        if any(not valid_receipts(p["receipts"], session=p["session_id"], through=p["covered_through"]) for p in probes["checkpoints"]):
             return "incomplete"
         identities = [tuple(r[k] for k in ("session_id", "revision", "covered_through")) for r in probes["events"]]
         captured = [tuple(r[k] for k in ("session_id", "revision", "covered_through")) for r in probes["checkpoints"]]

@@ -162,3 +162,17 @@ def test_partial_live_reports_and_same_provider_cannot_supply_release_evidence()
 
 def test_calibration_rejects_empty_expected_labels_before_calling_judge():
     assert calibrate(None, "test", [{"id": "empty", "expected": {}}], reviewed=True)["status"] == "failed"
+
+
+def test_provisional_example_check_cannot_become_reviewed_calibration(monkeypatch):
+    from evals.context import quality
+
+    examples = [{"id": str(i), "task": "task", "evidence": [], "reply": "reply", "receipts": [],
+                 "expected": {"task_success": i == 0, "stale_assertion": i == 1, "unsupported_assertion": i == 2}} for i in range(3)]
+    seen = []
+    def judge(*args):
+        seen.append(args)
+        return {"task_success": True, "stale_assertion": False, "unsupported_assertion": False, "reason": "Synthetic"}
+    monkeypatch.setattr(quality, "grade", judge)
+    result = calibrate(None, "offline", examples, provisional=True)
+    assert len(seen) == 3 and result["status"] == "incomplete" and not result["reviewed"]

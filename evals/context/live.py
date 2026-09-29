@@ -99,7 +99,7 @@ def execute(args, *, client_factory=None, should_stop=None):
             self.client.notify = value
 
         def create(self, **request):
-            if calls[0] >= args.max_calls:
+            if calls[0] >= args.max_calls or (should_stop is not None and should_stop()):
                 from waku.runtime.context import TurnStopped
                 raise TurnStopped("Live evaluation call allowance exhausted")
             calls[0] += 1
@@ -131,7 +131,8 @@ def execute(args, *, client_factory=None, should_stop=None):
             return save({"status": "incomplete", "quality_status": "incomplete", "error_type": type(exc).__name__,
                          "reason": "Judge client initialization failed", "promotion_status": "incomplete"})
         calibration = calibrate(judge, args.judge_model, labels["cases"], reviewed=not exploratory,
-                                required_kinds={"answer", "checkpoint", "memory_support", "memory_recall"})
+                                required_kinds={"answer", "checkpoint", "memory_support", "memory_recall"},
+                                provisional=exploratory and getattr(args, "check_examples", False))
         calibration["labels_sha256"] = digest(labels)
         calibration["reviewer"] = labels.get("reviewer", "")
         (output / "calibration.json").write_text(json.dumps(calibration, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -182,7 +183,7 @@ def execute(args, *, client_factory=None, should_stop=None):
                 app = build()
                 app.session.start_new("primary-project")
                 for step in expand(case):
-                    if calls[0] >= args.max_calls:
+                    if calls[0] >= args.max_calls or (should_stop is not None and should_stop()):
                         raise RuntimeError("Live call allowance exhausted")
                     if step["op"] == "restart":
                         app.close()
@@ -218,8 +219,10 @@ def execute(args, *, client_factory=None, should_stop=None):
                 evidence.append(f'Superseded or forgotten value, never assert as current: {case["old"]}')
             if case["family"] == "isolation":
                 evidence.append("Project Z port 9999 belongs to a different session and must not answer this task.")
-            item = {"id": f'{case["id"]}/{arm}/{trial}', "task": case["question"], "evidence": evidence,
-                    "reply": replies[-1]["reply"] if replies else "", "receipts": actions}
+            item = {"id": f'{case["id"]}/{arm}/{trial}', "task": case["question"],
+                    "evidence": {"authoritative_facts": evidence, "user_messages": capture.inputs,
+                                 "final_memory_snapshot": (capture.memory or {}).get("snapshot")},
+                    "reply": replies[-1]["reply"] if replies else "", "receipts": capture.executions}
             blinded, _ = blind([item], config["seed"])
             verdict = None
             probes = capture.report()
@@ -239,6 +242,7 @@ def execute(args, *, client_factory=None, should_stop=None):
                       "configuration": f"V5-{arm}", "turns": case["turns"], "turn_seconds": durations,
                       "status": "failed" if error else "complete", "error_type": error,
                       "replies": replies, "actual_actions": actions, "verdict": verdict, "usage": summarize(rows, rates)}
+            result["judge_input"] = blinded[0]
             expected_actions = [case["old"]] if case["family"] == "tools" else []
             result["action_check"] = actions == expected_actions
             result["task_success"] = (bool(verdict["task_success"]) and not verdict["stale_assertion"]
@@ -259,7 +263,7 @@ def execute(args, *, client_factory=None, should_stop=None):
                 secondary = json.loads(args.second_provider.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 secondary_error = type(exc).__name__
-        report = {"schema_version": 2, "runner": "live-exploratory" if exploratory else "live",
+        report = {"schema_version": 3, "runner": "live-exploratory" if exploratory else "live",
                 "experiment": config["experiment"], "manifest_sha256": digest(config),
                 "source": source, "source_end": final_source, "source_stable": source == final_source,
                 "provider": args.provider, "models": {"answer": args.model, "small": args.small_model, "judge": args.judge_model},

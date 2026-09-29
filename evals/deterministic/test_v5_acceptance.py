@@ -27,7 +27,7 @@ def evidence(case):
         else:
             messages.append({"session_id": session, "text": step["message"]})
     expected = expectations(case, messages, memory=True)
-    probes = {"schema_version": 1, "events": [], "persisted": [], "checkpoints": [], "capture_errors": [], "checks": [],
+    probes = {"schema_version": 2, "events": [], "persisted": [], "checkpoints": [], "capture_errors": [], "checks": [],
               "memory": {"snapshot": [{"id": 1, "subject": case["subject"], "content": case["current"], "source": "user"}]
                          if expected["required"] else [], "evidence": messages, "receipts": [], **expected}}
     probes["checks"] = [{"id": key, "kind": kind, "source": source, "verdict": verdict(), "error_type": None}
@@ -53,7 +53,7 @@ def report(provider="primary", trials=5, reserved=False):
                        {"id": c["id"], "kind": c.get("kind", "answer"), "expected": c["expected"],
                         "verdict": {**c["expected"], "reason": "Synthetic test"}} for c in labels["cases"]]}
     source = {"manifest_sha256": "synthetic-source-fixture"}
-    result = {"schema_version": 2, "runner": "live", "provider": provider, "status": "complete", "quality_status": "complete",
+    result = {"schema_version": 3, "runner": "live", "provider": provider, "status": "complete", "quality_status": "complete",
               "source_stable": True, "source": source, "source_end": dict(source), "manifest_sha256": digest(manifest()),
               "trials": trials, "cases": rows, "calibration": calibration}
     if not reserved:

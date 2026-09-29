@@ -99,7 +99,7 @@ def source_stable(report):
 
 
 def header_complete(report):
-    return (report.get("schema_version") == 2 and report.get("runner") == "live" and report.get("status") == "complete"
+    return (report.get("schema_version") == 3 and report.get("runner") == "live" and report.get("status") == "complete"
             and report.get("quality_status") == "complete" and source_stable(report)
             and report.get("manifest_sha256") == digest(manifest()) and calibrated(report.get("calibration", {})))
 
