@@ -10,6 +10,7 @@ from waku.config import Settings, load_settings
 from waku.db import connect
 from waku.loop.agent import LoopResult, Observer, run_loop
 from waku.loop.models import get_client
+from waku.memory.locking import serialized
 from waku.ops.tracing import Tracer, compose
 from waku.runtime.checkpoints import CheckpointStore
 from waku.runtime.compaction import CompactedRequest, Compactor
@@ -37,8 +38,14 @@ class Waku:
         from waku.memory import Memory
 
         self.memory = Memory(self.conn, self.settings, self.client)
+        if self.memory.lifecycle.enabled:
+            from waku.memory.context_policy import MemoryClient
+
+            self.client = MemoryClient(self.client, self.memory.lifecycle)
+            self.memory.client = self.client
         self.session = Session(self.settings, memory=self.memory)
         self.records = ExecutionStore(self.conn, self.settings.home, self.settings.tool_output_bytes)
+        self.records.lifecycle = self.memory.lifecycle
         self.checkpoints = CheckpointStore(self.records)
         self.compactor = (Compactor(self.settings, self.checkpoints, self.client, self.budget)
                           if self.settings.context_policy == "compact" else None)
@@ -55,6 +62,17 @@ class Waku:
         if self.mcp_bridge is not None:
             self.mcp_bridge.close()
 
+    def _sync_memory_policy(self):
+        """Observe suppression saved by another gateway since the last turn."""
+        from waku.memory.context_policy import MemoryClient
+
+        if self.memory.lifecycle.enabled and not isinstance(self.client, MemoryClient):
+            self.client = MemoryClient(self.client, self.memory.lifecycle)
+            self.memory.client = self.client
+            if self.compactor:
+                self.compactor.client = self.client
+
+    @serialized
     def respond(self, user_message: str, observer: Observer | None = None,
                 source: str = "cli", stream: bool = False) -> LoopResult:
         """One full turn: assemble working memory → run the loop → persist.
@@ -65,6 +83,7 @@ class Waku:
         # capture the gate + graph decisions as they flow by, so we can persist
         # them with the turn (the reopened-thread telemetry the dashboard shows)
         import time
+        self._sync_memory_policy()
         command, _, arguments = user_message.strip().partition(" ")
         if command.lower().split("@")[0] == "/compact":
             return (LoopResult(reply="Use /compact without arguments.") if arguments
@@ -84,7 +103,13 @@ class Waku:
         t0 = time.perf_counter()
         if self.budget:
             self.client.notify = notify
-        self._turn_record = self.records.turn(self.session.session_id, source) if self.budget else None
+        policy = self.memory.lifecycle
+        policy.session_id = self.session.session_id
+        self._turn_record = self.records.turn(self.session.session_id, source) if self.budget or policy.enabled else None
+        policy.turn_id = self._turn_record.turn_id if self._turn_record else None
+        if policy.generation:
+            self.session.switch(self.session.session_id)
+            self.memory.export_markdown()
 
         with self.tracer.turn(user_message):
             # The optional graph selects quick vs full. Pre-action failures can
@@ -95,6 +120,8 @@ class Waku:
                     self.checkpoints.import_legacy(self.session.session_id)
                     # Check interrupted executions before routing or any model
                     # call, including quick replies and manual compaction.
+                    self.checkpoints.sources(self.session.session_id)
+                elif policy.enabled:
                     self.checkpoints.sources(self.session.session_id)
                 if self._turn_record:
                     self._turn_record.message("user", user_message)
@@ -121,7 +148,7 @@ class Waku:
                 result = LoopResult(reply=str(exc), tool_calls=(self._turn_record.tool_calls
                                                                if self._turn_record else []))
                 notify("context_error", {"error": str(exc)})
-                if self.compactor and self._turn_record.position:
+                if self._turn_record and self._turn_record.position:
                     import json
 
                     rows = self.conn.execute("SELECT role,content_json FROM session_messages WHERE turn_id=? ORDER BY position",
@@ -156,7 +183,7 @@ class Waku:
                 "provider": self.settings.provider,
             }
             self.session.add_exchange(user_message, result.reply, tool_calls=result.tool_calls,
-                                      source=source, meta=meta)
+                                      source=source, meta=meta, turn_id=policy.turn_id)
             if self.memory is not None and not stopped:
                 self.memory.maybe_consolidate(notify=notify)
                 self.memory.export_markdown()   # keep MEMORY.md in sync
@@ -194,8 +221,10 @@ class Waku:
             prepare_request=context.prepare if context else None,
         )
 
+    @serialized
     def compact(self, observer=None) -> LoopResult:
         """Compact the active session without adding a chat turn or running tools."""
+        self._sync_memory_policy()
         if not self.compactor:
             return LoopResult(reply="Session compaction requires WAKU_CONTEXT_POLICY=compact.")
         notify = compose(observer, self.tracer.event)

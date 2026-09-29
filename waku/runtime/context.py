@@ -245,6 +245,6 @@ class BudgetedClient:
 
 
 def guard_client(client, budget):
-    if budget is None or isinstance(client, BudgetedClient):
+    if budget is None or isinstance(client, BudgetedClient) or getattr(client, "context_budget", None) is budget:
         return client
     return BudgetedClient(client, budget)

@@ -28,9 +28,8 @@ instead of in front of a user.
 
 Ids are `int | str` on purpose. SQLite rows are integers, but the Supabase
 table is keyed by a `chunk_id` string (`fact-a1b2c3…`) inherited from
-launch-rag, and a hosted API will hand back whatever it likes. The episodic
-side already settled this — `memory_admin.py` coerces by shape — so the
-semantic side matches rather than inventing a second convention.
+launch-rag, and a hosted API will hand back whatever it likes. Tools and the
+dashboard pass identifiers back unchanged, including numeric-looking strings.
 """
 
 from __future__ import annotations

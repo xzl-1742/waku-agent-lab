@@ -95,10 +95,21 @@ class Session:
         if self.settings.context_policy in ("budget", "compact"):
             parts.append("\n" + RESULT_READ_RULE)
 
+        if self.memory and self.memory.lifecycle.generation:
+            # Suppression removes the transcript, not execution identity. Keep
+            # content-free receipts so forgetting cannot imply an action is new.
+            receipts = self.memory.conn.execute(
+                "SELECT tool,result_id,state FROM tool_executions WHERE session_id=? ORDER BY rowid",
+                (self.session_id,),
+            ).fetchall()
+            if receipts:
+                parts.append("\nRecorded executions (do not repeat these actions):\n" + "\n".join(
+                    f"{r['tool']}: {r['state']}, result_id={r['result_id']}" for r in receipts))
+
         return "\n".join(parts)
 
     def add_exchange(self, user_message: str, reply: str, tool_calls: list | None = None,
-                     source: str = "cli", meta: dict | None = None) -> None:
+                     source: str = "cli", meta: dict | None = None, turn_id=None) -> None:
         """Record the turn in history (working memory) and, if memory is wired,
         in the chat log (so consolidation can distill it later).
 
@@ -114,7 +125,7 @@ class Session:
         self.history.append({"role": "assistant", "content": record})
         if self.memory is not None:
             self.memory.log_chat(user_message, record, session_id=self.session_id,
-                                 source=source, meta=meta)
+                                 source=source, meta=meta, turn_id=turn_id)
 
     # ---- session lifecycle (the "New chat" / history feature)
     # A session is just a tag on chat_log rows. Starting a new one clears working
@@ -123,12 +134,15 @@ class Session:
     def start_new(self, session_id: str) -> None:
         self.session_id = session_id
         self.history = []
+        if self.memory:
+            self.memory.lifecycle.session_id = session_id
 
     def switch(self, session_id: str) -> None:
         self.session_id = session_id
         self.history = []
         if self.memory is None:
             return
+        self.memory.lifecycle.session_id = session_id
         # only the recent tail of a past conversation goes back into working
         # memory (respond() also windows it, but don't hold the whole thread)
         turns = self.settings.history_turns

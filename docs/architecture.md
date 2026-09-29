@@ -108,7 +108,8 @@ friendly view; the **Data** tab shows the raw `state.db` tables.
   `registry.py` decides which are on.
 - `waku/memory/` — semantic (FTS5), episodic and procedural (SKILL.md) memory,
   plus `retrieval_gate.py` (hero 1: does this turn need memory?) and
-  `consolidation.py` (every N exchanges).
+  `consolidation.py` (legacy extraction), `batches.py` (bounded lifecycle extraction)
+  and `lifecycle.py` (scope, deduplication, versions and suppression).
 - `waku/ops/` — tracing (JSONL + OTel), the dashboard (localhost:7777),
   `release_gate.py`, and `compare_history.py` (the Compare arena's own JSONL
   scoreboard, never `state.db`).
@@ -154,7 +155,8 @@ capacities override a 32,768-token fallback policy, which is not a provider guar
 The shared Waku client guards loop, streaming, quick-reply, retrieval and
 consolidation calls. Graph LLM nodes and standalone loops also guard requests.
 Oversized helper requests fail before dispatch; a consolidation backlog stays
-unprocessed when its request is too large. V3 will add bounded consolidation batches.
+unprocessed when its request is too large. The V3 lifecycle policy uses bounded
+session batches; a single oversized exchange remains pending.
 
 Additive `session_messages` and `tool_executions` tables preserve original content
 and call IDs alongside the compatible chat log. A tool execution is committed as

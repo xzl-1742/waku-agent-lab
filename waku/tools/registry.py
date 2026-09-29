@@ -54,5 +54,9 @@ class ToolRegistry:
             if tool.wants_notify:
                 return tool.fn(**args, _notify=notify or (lambda kind, ev: None))
             return tool.fn(**args)
-        except Exception as exc:  # surface, don't crash — the model can retry
+        except Exception as exc:  # surface ordinary failures; terminal state must stop
+            from waku.runtime.context import TurnStopped
+
+            if isinstance(exc, TurnStopped):
+                raise
             return f"Error running {name}: {exc}"

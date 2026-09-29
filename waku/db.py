@@ -116,12 +116,67 @@ CREATE TABLE IF NOT EXISTS session_checkpoints (
     created_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY(session_id, revision)
 );
+CREATE TABLE IF NOT EXISTS memory_state (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    generation INTEGER NOT NULL DEFAULT 0,
+    chat_cutoff INTEGER NOT NULL DEFAULT 0,
+    message_cutoff INTEGER NOT NULL DEFAULT 0,
+    export_dirty INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO memory_state(id) VALUES(1);
+CREATE TABLE IF NOT EXISTS memory_evidence (
+    kind TEXT NOT NULL,
+    memory_id INTEGER NOT NULL,
+    source_kind TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    PRIMARY KEY(kind,memory_id,source_kind,source_id)
+);
+CREATE TABLE IF NOT EXISTS memory_suppressions (
+    kind TEXT NOT NULL,
+    memory_id INTEGER NOT NULL,
+    content_hash TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    PRIMARY KEY(kind,memory_id)
+);
+CREATE TABLE IF NOT EXISTS memory_blocked_turns (
+    turn_id TEXT PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS memory_blocked_results (
+    result_id TEXT PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS memory_batches (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    source_hash TEXT NOT NULL,
+    source_ids TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    committed_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Additive, idempotent column upgrades for databases created before a
     column existed. SQLite has no 'ADD COLUMN IF NOT EXISTS', so we check."""
+    additions = {
+        "facts": {"validity": "TEXT NOT NULL DEFAULT 'active'", "scope": "TEXT NOT NULL DEFAULT 'global'",
+                  "scope_id": "TEXT NOT NULL DEFAULT ''", "learned_session_id": "TEXT NOT NULL DEFAULT ''",
+                  "normalized_key": "TEXT", "supersedes": "INTEGER", "updated_at": "TEXT"},
+        "episodes": {"validity": "TEXT NOT NULL DEFAULT 'active'", "scope": "TEXT NOT NULL DEFAULT 'global'",
+                     "scope_id": "TEXT NOT NULL DEFAULT ''", "learned_session_id": "TEXT NOT NULL DEFAULT ''",
+                     "updated_at": "TEXT"},
+        "chat_log": {"turn_id": "TEXT", "project_id": "TEXT NOT NULL DEFAULT ''"},
+        "session_checkpoints": {"memory_generation": "INTEGER NOT NULL DEFAULT 0"},
+    }
+    with conn:
+        for table, columns in additions.items():
+            present = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+            for name, definition in columns.items():
+                if name not in present:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
     cols = {r[1] for r in conn.execute("PRAGMA table_info(chat_log)").fetchall()}
     if "session_id" not in cols:
         conn.execute("ALTER TABLE chat_log ADD COLUMN session_id TEXT DEFAULT 'default'")

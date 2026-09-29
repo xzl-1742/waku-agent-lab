@@ -65,10 +65,19 @@ def _fts_query(text: str) -> str:
 
 
 class SqliteFactStore:
-    def __init__(self, conn: sqlite3.Connection):
+    def __init__(self, conn: sqlite3.Connection, lifecycle=None):
         self.conn = conn
+        self.lifecycle = lifecycle
+
+    def _visible(self, alias=""):
+        if self.lifecycle:
+            return self.lifecycle.visible_sql(alias)
+        p = alias + "." if alias else ""
+        return f"{p}validity='active' AND {p}scope='global'", ()
 
     def add(self, subject: str, content: str, source: str = "user") -> None:
+        if self.lifecycle and self.lifecycle.enabled:
+            return self.lifecycle.add(subject, content, source)
         self.conn.execute(
             "INSERT INTO facts (subject, content, source) VALUES (?,?,?)",
             (subject.lower().strip(), content, source),
@@ -79,19 +88,21 @@ class SqliteFactStore:
         fts = _fts_query(query)
         if not fts:
             return []
+        visible, params = self._visible("f")
         rows = self.conn.execute(
             "SELECT f.subject, f.content FROM facts_fts JOIN facts f ON f.id = facts_fts.rowid "
-            "WHERE facts_fts MATCH ? ORDER BY rank LIMIT ?",
-            (fts, top_k),
+            f"WHERE facts_fts MATCH ? AND {visible} ORDER BY rank LIMIT ?",
+            (fts, *params, top_k),
         ).fetchall()
         return [f"[{r['subject']}] {r['content']}" for r in rows]
 
     # --- CRUD: humans (dashboard) and the agent (manage_memory tool) edit memory.
     # The facts_au / facts_ad triggers keep the FTS index in sync automatically.
     def list(self, limit: int = 200) -> list[dict]:
+        visible, params = self._visible()
         rows = self.conn.execute(
-            "SELECT id, subject, content, source, created_at FROM facts ORDER BY id DESC LIMIT ?",
-            (limit,),
+            f"SELECT * FROM facts WHERE {visible} ORDER BY id DESC LIMIT ?",
+            (*params, limit),
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -99,14 +110,17 @@ class SqliteFactStore:
         fts = _fts_query(query)
         if not fts:
             return self.list(top_k)
+        visible, params = self._visible("f")
         rows = self.conn.execute(
             "SELECT f.id, f.subject, f.content FROM facts_fts JOIN facts f ON f.id = facts_fts.rowid "
-            "WHERE facts_fts MATCH ? ORDER BY rank LIMIT ?",
-            (fts, top_k),
+            f"WHERE facts_fts MATCH ? AND {visible} ORDER BY rank LIMIT ?",
+            (fts, *params, top_k),
         ).fetchall()
         return [dict(r) for r in rows]
 
     def update(self, fact_id: int, content: str, subject: str | None = None) -> bool:
+        if self.lifecycle and self.lifecycle.enabled:
+            return self.lifecycle.change("fact", fact_id, content, subject)
         if subject is None:
             cur = self.conn.execute("UPDATE facts SET content=? WHERE id=?", (content, fact_id))
         else:
@@ -118,6 +132,8 @@ class SqliteFactStore:
         return cur.rowcount > 0
 
     def delete(self, fact_id: int) -> bool:
+        if self.lifecycle and self.lifecycle.enabled:
+            return self.lifecycle.change("fact", fact_id)
         cur = self.conn.execute("DELETE FROM facts WHERE id=?", (fact_id,))
         self.conn.commit()
         return cur.rowcount > 0

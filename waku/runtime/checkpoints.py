@@ -52,11 +52,15 @@ class CheckpointStore:
         self.records = records
         self.conn = records.conn
 
-    def latest(self, session_id):
+    def latest(self, session_id, include_invalid=False):
         row = self.conn.execute(
             "SELECT * FROM session_checkpoints WHERE session_id=? ORDER BY revision DESC LIMIT 1",
             (session_id,),
         ).fetchone()
+        if row and not include_invalid:
+            generation = self.conn.execute("SELECT generation FROM memory_state WHERE id=1").fetchone()[0]
+            if row["memory_generation"] != generation:
+                return None
         return dict(row) if row else None
 
     def sources(self, session_id, after=0, active_turn=None):
@@ -87,6 +91,9 @@ class CheckpointStore:
             if messages[-1]["role"] != "assistant":
                 raise TurnStopped("An earlier turn ended before its final response was recorded. "
                                   "Reconcile that turn before continuing; no action was repeated.")
+            policy = getattr(self.records, "lifecycle", None)
+            if policy and not policy.eligible_turn(turn_id):
+                continue
             # Match each result occurrence, not just call_id: providers may reuse
             # an identifier on a later iteration in the same turn.
             remaining = list(executions)
@@ -133,6 +140,9 @@ class CheckpointStore:
                     "VALUES (?,?,?,?,?,?)",
                     (session_id, turn, position, row["role"], encode(row["content"]), f"chat_log:{row['id']}"),
                 )
+                policy = getattr(self.records, "lifecycle", None)
+                if policy and not policy.eligible_chat(row):
+                    self.conn.execute("INSERT OR IGNORE INTO memory_blocked_turns VALUES (?)", (turn,))
                 position += 1
 
     def publish(self, session_id, previous, covered, retained, summary, metadata):
@@ -140,20 +150,29 @@ class CheckpointStore:
         revision = previous["revision"] if previous else 0
         self.conn.execute("BEGIN IMMEDIATE")
         try:
-            current = self.latest(session_id)
-            if (current["revision"] if current else 0) != revision:
+            current = self.latest(session_id, include_invalid=True)
+            generation = self.conn.execute("SELECT generation FROM memory_state WHERE id=1").fetchone()[0]
+            if metadata.get("memory_generation", generation) != generation:
+                raise TurnStopped("Memory policy changed during compaction; the stale summary was discarded.")
+            valid_current = current if current and current["memory_generation"] == generation else None
+            if (valid_current["revision"] if valid_current else 0) != revision:
                 raise TurnStopped("Checkpoint changed during compaction; the newer revision was kept.")
+            revision = current["revision"] if current else 0
             if metadata.get("source_sha256"):
                 sources = self.conn.execute(
-                    "SELECT id,role,content_json FROM session_messages WHERE session_id=? AND id>? AND id<=? ORDER BY id",
+                    "SELECT id,role,content_json,turn_id FROM session_messages WHERE session_id=? AND id>? AND id<=? ORDER BY id",
                     (session_id, previous["covered_through"] if previous else 0, covered),
                 ).fetchall()
-                if fingerprint([dict(row) for row in sources]) != metadata["source_sha256"]:
+                policy = getattr(self.records, "lifecycle", None)
+                snapshots = [{k: r[k] for k in ("id", "role", "content_json")} for r in sources
+                             if not policy or policy.eligible_turn(r["turn_id"])]
+                if fingerprint(snapshots) != metadata["source_sha256"]:
                     raise TurnStopped("Source messages changed during compaction; no checkpoint was published.")
             rows = self.conn.execute(
-                "SELECT id FROM session_messages WHERE session_id=? AND id<=? ORDER BY id", (session_id, covered),
+                "SELECT id,turn_id FROM session_messages WHERE session_id=? AND id<=? ORDER BY id", (session_id, covered),
             ).fetchall()
-            validate_summary(summary, {r["id"] for r in rows})
+            policy = getattr(self.records, "lifecycle", None)
+            validate_summary(summary, {r["id"] for r in rows if not policy or policy.eligible_turn(r["turn_id"])})
             if covered <= (previous["covered_through"] if previous else 0) or not rows or rows[-1]["id"] != covered:
                 raise ValueError("Checkpoint must advance to a real source boundary")
             if self.conn.execute(
@@ -169,8 +188,8 @@ class CheckpointStore:
                 raise ValueError("Retained boundary changed during compaction")
             self.conn.execute(
                 "INSERT INTO session_checkpoints "
-                "(session_id,revision,covered_through,retained_from,summary_json,metadata_json) VALUES (?,?,?,?,?,?)",
-                (session_id, revision + 1, covered, retained, encode(summary), encode(metadata)),
+                "(session_id,revision,covered_through,retained_from,summary_json,metadata_json,memory_generation) VALUES (?,?,?,?,?,?,?)",
+                (session_id, revision + 1, covered, retained, encode(summary), encode(metadata), generation),
             )
             self.conn.commit()
         except Exception:

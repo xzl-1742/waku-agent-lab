@@ -38,6 +38,7 @@ class Compactor:
     def compact(self, session_id, keep=None, active_turn=None, notify=None, accept=None):
         notify = notify or (lambda kind, event: None)
         previous = self.store.latest(session_id)
+        generation = self.store.conn.execute("SELECT generation FROM memory_state WHERE id=1").fetchone()[0]
         after = previous["covered_through"] if previous else 0
         turns = self.store.sources(session_id, after, active_turn)
         keep = self.settings.compaction_keep_turns if keep is None else keep
@@ -101,6 +102,7 @@ class Compactor:
                 raise ValueError("Compaction did not produce a smaller request")
             checkpoint = self.store.publish(session_id, previous, covered, retained, summary,
                                             {"source_sha256": self.store.digest(selected), "calls": calls,
+                                             "memory_generation": generation,
                                              "prompt_sha256": fingerprint(COMPACTION_PROMPT),
                                              "tool_output_policy": "saved-result-preview",
                                              "elapsed_ms": round((time.perf_counter() - started) * 1000, 3)})

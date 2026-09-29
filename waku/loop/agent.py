@@ -133,10 +133,19 @@ def run_loop(
         # ---- act: execute each requested tool; observe: feed results back
         tool_results = []
         originals = []
+        policy = getattr(records.store, "lifecycle", None) if records else None
+        generation = policy.generation if policy else 0
+        memory_changed = False
         for call in tool_uses:
+            if memory_changed:
+                canceled = "Not executed: memory changed earlier in this batch. Ask again if this action is still needed."
+                tool_results.append({"type": "tool_result", "tool_use_id": call.id, "content": canceled})
+                originals.append({"type": "tool_result", "tool_use_id": call.id, "content": canceled})
+                continue
             result_id = records.begin(call.id, call.name, call.input) if records else None
             output = tools.execute(call.name, call.input, notify=notify)
             visible = records.finish(result_id, output) if records else output
+            memory_changed = bool(policy and policy.generation != generation)
             event = {"tool": call.name, "args": call.input, "output": visible}
             if records:
                 event.update(call_id=call.id, result_id=result_id)
@@ -150,6 +159,10 @@ def run_loop(
         messages.append({"role": "user", "content": tool_results})
         if records:
             records.message("user", originals)
+        if memory_changed:
+            result.reply = "Memory changes were saved. Earlier conversation context was excluded to prevent stale facts from returning."
+            records.message("assistant", result.reply)
+            return result
 
     # ---- guardrail 2: ran out of iterations
     result.reply = "(I hit my iteration limit before finishing — try breaking the request into smaller steps.)"

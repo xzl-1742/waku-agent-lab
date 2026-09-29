@@ -19,6 +19,8 @@ import anthropic
 from waku.config import Settings
 from waku.memory import consolidation, retrieval_gate
 from waku.memory.episodic.store import SqliteEpisodeStore
+from waku.memory.lifecycle import Lifecycle
+from waku.memory.locking import serialized
 from waku.memory.procedural.loader import SkillLoader
 from waku.memory.semantic.store import SqliteFactStore
 
@@ -51,8 +53,14 @@ class Memory:
         self.conn = conn
         self.settings = settings
         self.client = client
+        self.lifecycle = Lifecycle(conn, settings)
         self.facts = self._make_fact_store(conn, settings)
         self.episodes = episode_store if episode_store is not None else self._make_episode_store(conn, settings)
+        if isinstance(self.facts, SqliteFactStore):
+            self.facts.lifecycle = self.lifecycle
+        if isinstance(self.episodes, SqliteEpisodeStore):
+            self.episodes.lifecycle = self.lifecycle
+        self.lifecycle.after_change = self.export_markdown
         self.skills = SkillLoader([*bundled_skill_dirs(), settings.home / "skills"])
 
     @staticmethod
@@ -98,7 +106,7 @@ class Memory:
             return ""
         found = self.facts.search(query, self.settings.retrieval_top_k)
         found += self.episodes.search(query, top_k=3)
-        return "\n".join(found)
+        return self.lifecycle.clean_text("\n".join(found))
 
     # ---- procedural
     def matching_skills(self, message: str) -> str:
@@ -107,17 +115,17 @@ class Memory:
 
     # ---- write paths
     def log_chat(self, user_message: str, reply: str, session_id: str = "default",
-                 source: str = "cli", meta: dict | None = None) -> None:
+                 source: str = "cli", meta: dict | None = None, turn_id=None) -> None:
         import json as _json
         self.conn.execute(
-            "INSERT INTO chat_log (role, content, session_id, source) VALUES ('user', ?, ?, ?)",
-            (user_message, session_id, source),
+            "INSERT INTO chat_log (role, content, session_id, source,turn_id,project_id) VALUES ('user', ?, ?, ?,?,?)",
+            (user_message, session_id, source, turn_id, self.settings.project_id),
         )
         # meta (gate/latency/iterations/tools) rides on the assistant row so a
         # reopened thread can render the full turn card, not just the text.
         self.conn.execute(
-            "INSERT INTO chat_log (role, content, session_id, source, meta) VALUES ('assistant', ?, ?, ?, ?)",
-            (reply, session_id, source, _json.dumps(meta) if meta else None),
+            "INSERT INTO chat_log (role, content, session_id, source, meta,turn_id,project_id) VALUES ('assistant', ?, ?, ?, ?,?,?)",
+            (reply, session_id, source, _json.dumps(meta) if meta else None, turn_id, self.settings.project_id),
         )
         self.conn.commit()
 
@@ -126,11 +134,14 @@ class Memory:
         """The (user, assistant) exchanges of one past session, in order — used
         to reload working memory when the user switches back to a conversation."""
         rows = self.conn.execute(
-            "SELECT role, content FROM chat_log WHERE session_id = ? ORDER BY id",
+            "SELECT * FROM chat_log WHERE session_id = ? ORDER BY id",
             (session_id,),
         ).fetchall()
         pairs, pending = [], None
         for r in rows:
+            if not self.lifecycle.eligible_chat(r):
+                pending = None
+                continue
             if r["role"] == "user":
                 pending = r["content"]
             elif pending is not None:
@@ -163,22 +174,23 @@ class Memory:
             })
         return out
 
+    @serialized
     def export_markdown(self) -> None:
         """Mirror memory to a human-readable MEMORY.md next to state.db — so the
         whiteboard's `~/.waku/MEMORY.md` box is literally real, and "your memory
         is a file you can open" is true. state.db stays the queryable source of
-        truth; this file is a generated view, refreshed after each turn."""
-        facts = self.conn.execute(
-            "SELECT subject, content FROM facts ORDER BY subject, id"
-        ).fetchall()
-        eps = self.conn.execute(
-            "SELECT happened_at, summary FROM episodes ORDER BY happened_at DESC, id DESC"
-        ).fetchall()
+        truth for SQLite; remote adapters remain authoritative for their data.
+        This file is a generated view, refreshed after each turn."""
+        import os
+        import tempfile
+
+        facts = self.facts.list(100000)
+        eps = self.episodes.list(100000)
         lines = [
             "# Waku memory",
             "",
             ("_A human-readable mirror of what Waku remembers. The source of truth is "
-            "`state.db` (the `facts` and `episodes` tables, keyword-searchable via FTS5); "
+            "the configured fact and episode stores; "
             "this file is regenerated after every turn._"),
             "",
             f"## Facts — semantic memory ({len(facts)})",
@@ -187,9 +199,28 @@ class Memory:
         lines += [f"- **{f['subject']}** — {f['content']}" for f in facts] or ["_none yet_"]
         lines += ["", f"## Episodes — episodic memory ({len(eps)})", ""]
         lines += [f"- **{e['happened_at']}** — {e['summary']}" for e in eps] or ["_none yet_"]
-        (self.settings.home / "MEMORY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        rendered = "\n".join(lines) + "\n"
+        name = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.settings.home,
+                                             prefix="memory-export-", suffix=".tmp", delete=False) as handle:
+                name = handle.name
+                handle.write(rendered)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(name, self.settings.home / "MEMORY.md")
+            self.conn.execute("UPDATE memory_state SET export_dirty=0 WHERE id=1")
+            self.conn.commit()
+        finally:
+            if name and Path(name).exists():
+                Path(name).unlink()
 
     def maybe_consolidate(self, notify=None) -> None:
+        if self.lifecycle.enabled:
+            from waku.memory.batches import consolidate
+
+            consolidate(self, notify)
+            return
         new_facts = consolidation.consolidate_if_due(
             self.conn,
             self.client,

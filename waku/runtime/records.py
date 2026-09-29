@@ -86,13 +86,17 @@ class ExecutionStore:
             raise ValueError("offset and limit must be non-negative/positive integer byte counts")
         path = self.path(result_id)
         row = self.conn.execute(
-            "SELECT state, result_bytes FROM tool_executions WHERE result_id=? AND session_id=?",
+            "SELECT state, result_bytes,turn_id FROM tool_executions WHERE result_id=? AND session_id=?",
             (result_id, session_id),
         ).fetchone()
         if row is None:
             raise ValueError("Result not found in the active session")
         if row["state"] != "complete":
             raise ValueError("Execution outcome is unknown; do not repeat the action automatically")
+        policy = getattr(self, "lifecycle", None)
+        blocked_result = self.conn.execute("SELECT 1 FROM memory_blocked_results WHERE result_id=?", (result_id,)).fetchone()
+        if blocked_result or (policy and not policy.eligible_turn(row["turn_id"])):
+            raise ValueError("This saved result is excluded by memory suppression; its original file was retained")
         if offset > row["result_bytes"]:
             raise ValueError("offset exceeds result size")
         size = min(limit, max(4, self.output_cap // 8))
@@ -111,6 +115,8 @@ class ExecutionStore:
                     if not byte:
                         raise ValueError("Invalid UTF-8 result") from exc
                     data += byte
+        if policy:
+            content = policy.clean_text(content)
         return encode({"result_id": result_id, "offset": offset, "next_offset": offset + len(data),
                        "eof": offset + len(data) == row["result_bytes"], "content": content})
 
@@ -158,6 +164,9 @@ class TurnRecord:
                 handle.write(data)
                 handle.flush()
                 os.fsync(handle.fileno())
+            policy = getattr(self.store, "lifecycle", None)
+            if policy and policy.clean_text(output) != output:
+                self.store.conn.execute("INSERT OR IGNORE INTO memory_blocked_results VALUES (?)", (result_id,))
             self.store.conn.execute(
                 "UPDATE tool_executions SET state='complete',outcome_json=?,result_bytes=?,"
                 "result_sha256=?,completed_at=datetime('now') WHERE result_id=?",
@@ -170,4 +179,5 @@ class TurnRecord:
                 "The tool ran but its result could not be committed. Its outcome is unknown; "
                 "check the original destination before repeating the action."
             ) from exc
-        return reduce_output(output, result_id, self.store.output_cap)
+        visible = policy.clean_text(output) if policy else output
+        return reduce_output(visible, result_id, self.store.output_cap)

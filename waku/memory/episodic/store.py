@@ -14,8 +14,15 @@ from waku.memory.semantic.store import _fts_query
 
 
 class SqliteEpisodeStore:
-    def __init__(self, conn: sqlite3.Connection):
+    def __init__(self, conn: sqlite3.Connection, lifecycle=None):
         self.conn = conn
+        self.lifecycle = lifecycle
+
+    def _visible(self, alias=""):
+        if self.lifecycle:
+            return self.lifecycle.visible_sql(alias)
+        p = alias + "." if alias else ""
+        return f"{p}validity='active' AND {p}scope='global'", ()
 
     def add(self, summary: str, happened_at: str) -> None:
         self.conn.execute(
@@ -29,29 +36,34 @@ class SqliteEpisodeStore:
         fts = _fts_query(query)
         if not fts:
             return self.recent(top_k)
+        visible, params = self._visible("e")
         rows = self.conn.execute(
             "SELECT e.happened_at, e.summary FROM episodes_fts JOIN episodes e "
-            "ON e.id = episodes_fts.rowid WHERE episodes_fts MATCH ? "
+            f"ON e.id = episodes_fts.rowid WHERE episodes_fts MATCH ? AND {visible} "
             "ORDER BY rank, e.happened_at DESC LIMIT ?",
-            (fts, top_k),
+            (fts, *params, top_k),
         ).fetchall()
         return [f"({r['happened_at']}) {r['summary']}" for r in rows]
 
     def recent(self, top_k: int = 3) -> list[str]:
+        visible, params = self._visible()
         rows = self.conn.execute(
-            "SELECT happened_at, summary FROM episodes ORDER BY happened_at DESC LIMIT ?",
-            (top_k,),
+            f"SELECT happened_at, summary FROM episodes WHERE {visible} ORDER BY happened_at DESC LIMIT ?",
+            (*params, top_k),
         ).fetchall()
         return [f"({r['happened_at']}) {r['summary']}" for r in rows]
 
     def list(self, limit: int = 200) -> list[dict]:
+        visible, params = self._visible()
         rows = self.conn.execute(
-            "SELECT id, happened_at, summary, created_at FROM episodes ORDER BY id DESC LIMIT ?",
-            (limit,),
+            f"SELECT * FROM episodes WHERE {visible} ORDER BY id DESC LIMIT ?",
+            (*params, limit),
         ).fetchall()
         return [dict(r) for r in rows]
 
     def delete(self, episode_id: int) -> bool:
+        if self.lifecycle and self.lifecycle.enabled:
+            return self.lifecycle.change("episode", episode_id)
         cur = self.conn.execute("DELETE FROM episodes WHERE id=?", (episode_id,))
         self.conn.commit()
         return cur.rowcount > 0

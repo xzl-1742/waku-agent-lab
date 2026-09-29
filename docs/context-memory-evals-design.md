@@ -236,6 +236,28 @@ chat and result records remain intact. A same-turn correction or deletion ends
 the tool batch with a deterministic acknowledgement before any further model
 call. Readable exports refresh atomically before success is reported.
 
+The initial compatibility policy is deliberately conservative: every correction
+or deletion invalidates all earlier conversation context and checkpoints in the
+home, all derived facts and episodes, and exact duplicate explicit values.
+Unrelated explicit facts remain active. Pre-V3 data does not have enough
+provenance to prove that an old summary is independent of a changed fact.
+This costs task context; original rows and result files remain in the archive.
+Content-free execution receipts remain available to discourage action replay.
+Unresolved executions still block continuation, even when their text is excluded.
+
+New inputs and tool observations receive exact normalized phrase filtering;
+complete explicit replacement values remain eligible. This cannot identify all
+paraphrases supplied again by external sources. Suppression is a context policy,
+not erasure of archives, external services or a model's pretrained knowledge.
+Turning the flag off retains enforcement once suppression has been recorded;
+checking out an older binary that ignores these columns is not a safe rollback.
+
+Lifecycle extraction sends at most one bounded session batch per invocation.
+An exchange too large to fit remains pending with a visible blocked event.
+The input cap bounds model requests, not the size of the local pending-row scan.
+Home-scoped process and thread locks serialize turns, publication and memory
+mutations; model calls hold that lock, so another gateway may wait or time out.
+
 The initial evaluation labels are `V3-window` and `V3-compact`. Their metadata
 identifies lifecycle policy and unchanged retrieval policy separately. V5's
 combined C/D labels remain reserved until the retrieval work is implemented.

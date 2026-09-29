@@ -92,6 +92,10 @@ class Settings:
     compaction_max_calls: int = field(default_factory=lambda: int(os.getenv("WAKU_COMPACTION_MAX_CALLS", "32")))
 
     # --- Memory
+    memory_policy: str = field(default_factory=lambda: os.getenv("WAKU_MEMORY_POLICY", "legacy"))
+    memory_scope: str = field(default_factory=lambda: os.getenv("WAKU_MEMORY_SCOPE", "global"))
+    project_id: str = field(default_factory=lambda: os.getenv("WAKU_PROJECT_ID", ""))
+    consolidation_input_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_CONSOLIDATION_INPUT", "16000")))
     # Consolidate (distill chats into durable facts) only after N new exchanges.
     consolidate_every: int = field(default_factory=lambda: int(os.getenv("WAKU_CONSOLIDATE_EVERY", "6")))
     retrieval_top_k: int = field(default_factory=lambda: int(os.getenv("WAKU_RETRIEVAL_TOP_K", "4")))
@@ -157,6 +161,14 @@ class Settings:
     )
 
     def __post_init__(self) -> None:
+        if self.memory_policy not in ("legacy", "lifecycle"):
+            raise ValueError("memory_policy must be legacy or lifecycle")
+        if self.memory_scope not in ("global", "project", "session"):
+            raise ValueError("memory_scope must be global, project or session")
+        if self.memory_scope == "project" and not self.project_id:
+            raise ValueError("Project memory requires WAKU_PROJECT_ID")
+        if self.consolidation_input_tokens < 1024:
+            raise ValueError("consolidation_input_tokens must be at least 1024")
         if self.history_turns < 0:
             raise ValueError("history_turns must be non-negative (zero disables prior history)")
         if self.context_policy not in ("budget", "window", "compact"):
