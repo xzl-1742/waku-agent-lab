@@ -23,8 +23,8 @@ def test_full_context_reservation_blocks_a_request_before_sending():
 def test_peak_spend_ignores_cache_discounts_and_releases_unused_reservation():
     budget = Budget("5", 1)
     reservation = budget.reserve(MODEL, 8192)
-    assert reservation == Decimal("2.162688")
-    budget.settle(reservation, SimpleNamespace(prompt_tokens=1000, completion_tokens=100, prompt_cache_hit_tokens=1000))
+    assert reservation.amount == Decimal("2.162688")
+    budget.settle(reservation, SimpleNamespace(prompt_tokens=1000, completion_tokens=100))
     assert budget.upper == Decimal("0.0028")
     with pytest.raises(PilotStopped, match="allowance"):
         budget.reserve(MODEL, 1)
@@ -38,7 +38,7 @@ def test_missing_usage_retains_reservation_and_stops(usage):
     reservation = budget.reserve(MODEL, 8192)
     with pytest.raises(PilotStopped):
         budget.settle(reservation, usage)
-    assert budget.upper == reservation
+    assert budget.upper == reservation.amount
     with pytest.raises(PilotStopped):
         budget.reserve(MODEL, 1)
 
@@ -78,3 +78,59 @@ def test_transport_disables_thinking_retries_and_redirects_and_stops_after_error
     assert error["error_type"] == "RuntimeError" and error["request_number"] == 1
     assert "synthetic transport failure" not in json.dumps(error)
     close()
+
+
+def test_durable_budget_keeps_unknown_reservation_across_batches_and_settles_once(tmp_path):
+    path = tmp_path / "budget.jsonl"
+    first = Budget("5", 10, path)
+    pending = first.reserve(MODEL, 8192)
+    first.close()  # Represents an interruption before response usage was available.
+    second = Budget("5", 10, path)
+    assert second.upper == pending.amount and len(second.pending) == 1
+    measured = second.reserve(MODEL, 100)
+    second.settle(measured, SimpleNamespace(prompt_tokens=1000, completion_tokens=100,
+                                           prompt_cache_hit_tokens=600, prompt_cache_miss_tokens=400))
+    assert second.upper == pending.amount + Decimal("0.001624")
+    with pytest.raises(PilotStopped, match="settled"):
+        second.settle(measured, SimpleNamespace(prompt_tokens=1000, completion_tokens=100))
+    second.close()
+    third = Budget("5", 10, path)
+    assert third.upper == pending.amount + Decimal("0.001624")
+    third.close()
+
+
+def test_campaign_rejects_concurrent_writer_and_increased_allowance(tmp_path):
+    path = tmp_path / "budget.jsonl"
+    first = Budget("5", 10, path)
+    with pytest.raises(OSError):
+        Budget("5", 10, path)
+    first.close()
+    with pytest.raises(ValueError, match="allowance"):
+        Budget("10", 10, path)
+
+
+def test_corrupt_campaign_ledger_fails_closed(tmp_path):
+    path = tmp_path / "budget.jsonl"
+    budget = Budget("5", 10, path)
+    budget.reserve(MODEL, 100)
+    budget.close()
+    with path.open("a") as handle:
+        handle.write('{"kind":')
+    with pytest.raises(ValueError):
+        Budget("5", 10, path)
+
+
+@pytest.mark.parametrize("usage", [
+    SimpleNamespace(prompt_tokens=1000, completion_tokens=1, prompt_cache_hit_tokens=900, prompt_cache_miss_tokens=200),
+    SimpleNamespace(prompt_tokens=1000, completion_tokens=101),
+])
+def test_inconsistent_usage_retains_the_full_durable_reservation(tmp_path, usage):
+    path = tmp_path / "budget.jsonl"
+    budget = Budget("5", 10, path)
+    reserved = budget.reserve(MODEL, 100)
+    with pytest.raises(PilotStopped):
+        budget.settle(reserved, usage)
+    budget.close()
+    restored = Budget("5", 10, path)
+    assert restored.upper == reserved.amount
+    restored.close()

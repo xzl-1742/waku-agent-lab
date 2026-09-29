@@ -134,7 +134,7 @@ final wording cannot compensate for failed checkpoint or memory checks.
 The published SQLite checkpoint inventory must match observed and captured
 revisions. Snapshot failures are recorded without changing runtime behavior.
 
-The live report uses schema version 2. Reviewed calibration must cover successful
+The live report uses schema version 3 and probe schema version 2. Reviewed calibration must cover successful
 and failing answer, checkpoint, memory-support and memory-recall cases. Proposed
 labels remain unreviewed. Startup failures, missing judgments and exact allowance
 exhaustion produce persisted incomplete reports. Local action tools generate
@@ -199,8 +199,9 @@ The pilot disables SDK retries and redirects and uses a 90-second SDK timeout.
 It logs only the exception type when a request fails and stops before starting
 another scenario. Before each request, it reserves
 the full advertised context plus maximum output at the official peak prices
-checked on 2026-09-29. Provider usage releases unused reserves without assuming
-cache discounts. A transport error or missing usage stops further paid calls.
+checked on 2026-09-29. Provider usage releases unused reserves using peak prices;
+cache discounts require consistent provider hit/miss counters. A transport error
+or missing usage stops further paid calls.
 `spend.json` records CNY separately from the existing USD ledger, and
 `deepseek-usage.jsonl` retains the provider's cache counts. Prices must be
 rechecked before reusing this dated guard. Balance changes may include other
@@ -209,6 +210,22 @@ activity on the same account.
 The underlying live runner supports `--exploratory` and repeated `--case ID`.
 Exploratory runs use provisional judge opinions and retain incomplete calibration,
 quality and promotion status. They cannot supply release evidence.
+
+Sequential batches share `--budget-ledger PATH` and the same `--budget-cny`
+allowance. The journal flushes each reservation before dispatch, releases it
+exactly once after valid usage, and retains unknown requests after interruption.
+An OS lock prevents concurrent writers. The ledger rejects changed allowances,
+changed rates and malformed records. A new campaign needs its own ledger path.
+`--check-examples` measures agreement with proposed labels without claiming
+independent review or completed calibration.
+
+Judges now receive evaluator-captured tool results, including memory saves,
+updates, searches and deletions. Arguments alone do not prove execution. Error
+results remain visible as failed evidence. Structured runs verify original
+result bytes and hashes; window runs capture the same completion events without
+inventing persistence IDs. Checkpoint evidence excludes future and other-session
+actions. Memory grading projects only subject/content while reports retain
+storage metadata. Raw judge inputs are saved for auditing disagreements.
 
 To show a completed report in a selected dashboard, run
 `python -m evals.context.publish REPORT.json --home PATH_TO_SELECTED_WAKU_HOME`.
