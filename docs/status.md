@@ -17,7 +17,7 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**1111 checks pass in the isolated offline suite**, with no API key; 63 checks
+**1165 checks pass in the isolated offline suite**, with no API key; 63 checks
 skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
@@ -53,6 +53,15 @@ obsolete values are absent from the final inputs in every correction and
 forgetting case. Real-model quality remains unmeasured, and the default memory
 policy remains `legacy`. See [the V3 report](v3-baseline.md) for the context-loss
 tradeoff, configuration and limits.
+
+**V4 adds opt-in selective retrieval.** `WAKU_RETRIEVAL_POLICY=selective`
+enables bounded context hints, strict gate decisions, Unicode matching and
+ID-bearing evidence with detail reads. Recovery searches reuse the memory tool.
+All 24 frozen cases satisfy candidate evidence and budget checks, while four
+relevant-record cases still miss. Reserved average recall remains 66.7% on both
+policies, and short-record metadata increases overhead. Real answer quality and
+cost remain unmeasured. The default retrieval policy remains `legacy`; see
+[the V4 report](v4-baseline.md) for configuration, results and limits.
 
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.

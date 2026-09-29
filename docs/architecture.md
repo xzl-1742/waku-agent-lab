@@ -114,6 +114,8 @@ unrelated local fact rows.
   plus `retrieval_gate.py` (hero 1: does this turn need memory?) and
   `consolidation.py` (legacy extraction), `batches.py` (bounded lifecycle extraction)
   and `lifecycle.py` (scope, deduplication, versions and suppression).
+  `selective_gate.py`, `lexical.py` and `retrieval.py` add the opt-in V4 gate,
+  local ranking, bounded snippets and memory detail reads.
 - `waku/ops/` — tracing (JSONL + OTel), the dashboard (localhost:7777),
   `release_gate.py`, and `compare_history.py` (the Compare arena's own JSONL
   scoreboard, never `state.db`).
@@ -212,6 +214,18 @@ It links explicit corrections, deduplicates exact values, publishes bounded
 SQLite extraction batches atomically and excludes invalid sources from model
 context. Suppression invalidates earlier checkpoints while preserving archives
 and execution receipts. The default remains the legacy write policy.
+
+## Selective retrieval (V4)
+
+The opt-in `WAKU_RETRIEVAL_POLICY=selective` gate sees bounded eligible dialogue
+and checkpoint hints. Strict decisions choose keyword search or explicit recent
+episodes; ordinary gate failures take one bounded lexical fallback. SQLite scope
+and validity checks precede Unicode ranking. Evidence includes IDs and fits a
+serialized estimate budget. The model can recover through two memory searches
+and three detail pages per turn. Page reads recheck suppression before slicing.
+The default remains `legacy`; remote stores reject selective configuration.
+The [V4 report](v4-baseline.md) records reserved misses, metadata overhead and
+the lack of a measured answer-quality or cost improvement.
 
 ## What this deliberately is not
 

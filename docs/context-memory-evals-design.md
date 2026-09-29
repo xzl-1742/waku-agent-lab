@@ -301,7 +301,7 @@ budget and suppression failures propagate. Trace events distinguish deliberate
 skips, malformed decisions, API failures, search failures and tool recovery.
 
 Local matching uses a separate Unicode search normalization, whole words and Han
-bigrams. Scope and validity filter before ranking. Relevance precedes source
+bigrams, plus limited English plural/`ing` matching. Scope and validity filter before ranking. Relevance precedes source
 priority and freshness; ranking is an ordering rule, not a probability. The
 initial implementation scans eligible SQLite rows with a bounded top-k heap.
 Query length, match terms and returned material are bounded; database scan time
@@ -337,6 +337,12 @@ optional experiment rather than a dependency added to make a synthetic score pas
 - Reports include gate false negatives, Recall@k, relevant-token share, recovery searches, stale assertions and unsupported assertions.
 - Retrieval must preserve the V3 correction and forgetting guarantees.
 - A more expensive search policy needs a measured quality gain; changing the database backend alone is not treated as improvement.
+
+The implemented [V4 comparison](v4-baseline.md) passes its critical evidence
+checks but does not improve reserved average recall. Paraphrase and old-value
+queries still miss records. The optional hybrid experiment therefore needs a
+new frozen comparison and remains V5 work. V4 does not promote selective
+retrieval to the default or claim measured answer quality.
 
 ## 9. V5: compare, observe and release the combined system
 

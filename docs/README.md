@@ -36,6 +36,7 @@ into four groups.
 | [v1-baseline.md](v1-baseline.md) | bounded-request behavior, frozen A/B measurements and operating limits |
 | [v2-baseline.md](v2-baseline.md) | persistent checkpoints, frozen B/B2 retention measurements and summary overhead |
 | [v3-baseline.md](v3-baseline.md) | memory lifecycle, suppression tradeoffs and frozen V3-window/V3-compact results |
+| [v4-baseline.md](v4-baseline.md) | selective retrieval, evidence budgets, recovery reads and frozen recall comparisons |
 | [providers-registry.md](providers-registry.md) | adding a model provider: one table in `waku/providers.toml` |
 | [memory-backends-playbook.md](memory-backends-playbook.md) | seeing your memories in each provider's own console |
 | [benchmarks.md](benchmarks.md) | what has been measured, and how |

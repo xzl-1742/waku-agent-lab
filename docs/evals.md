@@ -111,6 +111,22 @@ Canonical records and full result files add disk usage. V1 does not delete runti
 data, summarize old conversation or claim that forgotten information is absent
 from old transcripts. The V0 quality limitations still apply.
 
+## Selective retrieval comparison (V4)
+
+The [V4 comparison](v4-baseline.md) uses a separate, frozen 24-case bank with
+16 development cases and eight reserved cases. Run
+`python -m evals.retrieval.runner --split all --output eval-results/retrieval-v4.json`.
+The report separates search recall, delivered recall and recall after a bounded
+recovery search. It also records forbidden evidence, evidence budgets, source
+ordering, scripted gate misses and serialized-byte relevance share.
+
+Both policies use scripted gates and real isolated SQLite stores. The selective
+candidate removes common-word false positives, but reserved average recall does
+not improve. Paraphrase and old-value lookup misses stay visible. A complete
+execution means critical invariants held, not that all relevant evidence was
+found. Answer assertions, learned gate quality, provider tokens and cost remain
+unmeasured. V0's long-context fixtures and V5's combined C/D labels stay separate.
+
 ## Catching bugs
 
 The history regressions cover zero and negative `WAKU_HISTORY_TURNS` values.
