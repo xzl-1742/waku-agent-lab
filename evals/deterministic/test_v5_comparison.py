@@ -5,8 +5,8 @@ import pytest
 from evals.context.comparison import paired_interval, summarize
 from evals.context.experiment import manifest, policies
 from evals.context.fixtures import load_cases
-from evals.context.runner import run_case
 from evals.context.quality import blind, calibrate, promotion, validate
+from evals.context.runner import run_case
 
 
 def test_historical_and_v5_labels_do_not_drift():
@@ -42,6 +42,15 @@ def test_matrix_rejects_missing_coverage():
     assert not result["coverage_complete"]
 
 
+def test_resource_intervals_use_declared_median_without_dropping_tail():
+    rows = [{"id": key, "family": "f", "trial": 1, "configuration": arm, "score": score}
+            for key, value in (("one", 1), ("two", 2), ("tail", 100))
+            for arm, score in (("A", 0), ("D", value))]
+    result = paired_interval(rows, "D", "A", "score", statistic="median")
+    assert result["delta"] == 2 and result["interval_95"] == [1, 100]
+    assert result["statistic"] == "median"
+
+
 def test_blind_judge_payload_omits_arm_model_and_expected_labels():
     item = {"id": "D-case", "configuration": "D", "model": "candidate", "expected": {"task_success": True},
             "task": "remember", "evidence": ["current fact"], "reply": "answer", "receipts": []}
@@ -68,6 +77,7 @@ def test_scripted_and_missing_quality_never_promote():
 
 def test_gate_history_and_latest_share_comparison_status(tmp_path):
     import json
+
     from waku.ops.release_gate import report
 
     suites = {k: {"status": "complete"} for k in ("deterministic", "judge")}

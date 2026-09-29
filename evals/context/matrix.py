@@ -19,6 +19,7 @@ def run(cases, root, trials=5, progress=None):
     from evals.context.runner import run_case
 
     config = manifest()
+    source = source_snapshot()
     expected = [(c["id"], f"V5-{arm}", trial) for c in cases for trial in range(1, trials + 1) for arm in config["arms"]]
     order = list(expected)
     random.Random(config["seed"]).shuffle(order)
@@ -32,8 +33,10 @@ def run(cases, root, trials=5, progress=None):
             progress(i + 1, len(order), row)
     summary = summarize(results, expected, config)
     status = "complete" if summary["coverage_complete"] and all(r["status"] == "complete" for r in results) else "failed"
+    final_source = source_snapshot()
     return {"schema_version": 1, "experiment": config["experiment"], "manifest": config,
-            "manifest_sha256": digest(config), "source": source_snapshot(), "order": order,
+            "manifest_sha256": digest(config), "source": source, "source_end": final_source,
+            "source_stable": source == final_source, "order": order,
             "trials": trials, "status": status, "quality_status": "incomplete", "promotion_status": "incomplete",
             "summary": summary, "cases": results, "judge_cost_usd": None,
             "limits": ["Scripted replies and extraction do not measure task or judge quality.",

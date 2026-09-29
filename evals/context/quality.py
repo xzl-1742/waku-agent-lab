@@ -6,7 +6,9 @@ independent review; scripted graders only test this contract.
 """
 
 import json
+import math
 import random
+import statistics
 import uuid
 
 RUBRIC = """Grade the supplied task, authoritative evidence and actual reply.
@@ -62,6 +64,11 @@ def grade(client, model, item):
 def calibrate(client, model, examples, reviewed=False):
     if not reviewed or not examples:
         return {"status": "incomplete", "agreement": None, "reason": "Independent calibration-label review is missing"}
+    label_keys = {"task_success", "stale_assertion", "unsupported_assertion"}
+    if (len({e["id"] for e in examples}) != len(examples)
+            or any(set(e.get("expected", {})) != label_keys
+                   or any(type(v) is not bool for v in e["expected"].values()) for e in examples)):
+        return {"status": "failed", "agreement": None, "reason": "Calibration labels must be complete unique boolean cases"}
     blinded, mapping = blind(examples, 20260929)
     expected = {e["id"]: e["expected"] for e in examples}
     results = []
@@ -83,6 +90,38 @@ def calibrate(client, model, examples, reviewed=False):
             "agreement": agreement, "results": results, "model": model, "rubric": RUBRIC}
 
 
+def frozen_coverage(report, *, all_cases=True):
+    from evals.context.fixtures import load_cases
+
+    cases = load_cases()
+    trials = 5 if all_cases else report.get("trials", 0)
+    if type(trials) is not int or not 1 <= trials <= 5:
+        return False
+    wanted = {c["id"] for c in cases if all_cases or c["split"] == "reserved"}
+    expected = {(key, f"V5-{a}", t) for key in wanted for a in "ABCD" for t in range(1, trials + 1)}
+    rows = report.get("cases", [])
+    seen = [(r.get("id"), r.get("configuration"), r.get("trial")) for r in rows]
+    relevant = {key for key in seen if key[0] in wanted}
+    return len(seen) == len(set(seen)) and relevant == expected and all(
+        r.get("status") == "complete" and r.get("verdict") is not None for r in rows)
+
+
+def second_provider_status(report, primary):
+    from evals.context.experiment import manifest
+    from evals.context.measurement import digest
+
+    complete = bool(report and report.get("runner") == "live" and report.get("provider")
+        and report["provider"] != primary and report.get("status") == "complete"
+        and report.get("source_stable") is True and report.get("manifest_sha256") == digest(manifest())
+        and report.get("calibration", {}).get("status") == "complete" and frozen_coverage(report, all_cases=False)
+        and all(not r.get("error_type") and r.get("action_check") is True
+                and not any((r.get("verdict") or {}).get(k) for k in ("stale_assertion", "unsupported_assertion"))
+                for r in report.get("cases", [])))
+    return {"status": "complete" if complete else "incomplete",
+            "provider": report.get("provider") if report else None,
+            "report_sha256": digest(report) if report else None}
+
+
 def promotion(report):
     """Incomplete or synthetic evidence cannot promote a default configuration."""
     if report.get("status") == "failed":
@@ -90,7 +129,12 @@ def promotion(report):
     summary = report.get("summary", {})
     if any(summary.get("arms", {}).get(a, {}).get("critical_failures") for a in ("C", "D")):
         return "failed"
-    required = (report.get("runner") == "live", report.get("quality_status") == "complete",
+    from evals.context.experiment import manifest
+    from evals.context.measurement import digest
+
+    required = (report.get("status") == "complete", report.get("source_stable") is True,
+                report.get("manifest_sha256") == digest(manifest()), frozen_coverage(report),
+                report.get("runner") == "live", report.get("quality_status") == "complete",
                 summary.get("coverage_complete") is True, report.get("trials", 0) >= 5,
                 report.get("calibration", {}).get("status") == "complete",
                 report.get("second_provider", {}).get("status") == "complete")
@@ -100,9 +144,69 @@ def promotion(report):
     m = report.get("quality_metrics", {})
     needed = ("long_task_gain_lower_95", "baseline_long_success", "runtime_reduction_lower_95",
               "short_task_change_lower_95", "short_latency_ratio_upper_95", "critical_failures")
-    if any(m.get(k) is None for k in needed):
+    if any(type(m.get(k)) not in (int, float) or not math.isfinite(m[k]) for k in needed):
         return "incomplete"
     if m["critical_failures"] or m["short_task_change_lower_95"] < -.03 or m["short_latency_ratio_upper_95"] > 1.10:
         return "failed"
     benefit = m["long_task_gain_lower_95"] >= .10 or (m["baseline_long_success"] >= .90 and m["runtime_reduction_lower_95"] >= .20)
     return "complete" if benefit else "inconclusive"
+
+
+def aggregate(results, expected):
+    from evals.context.comparison import paired_interval
+
+    seen = [(r["id"], r["configuration"], r["trial"]) for r in results]
+    summary = {"coverage_complete": len(seen) == len(set(seen)) and set(seen) == set(expected), "arms": {}}
+    for arm in "ABCD":
+        rows = [r for r in results if r["configuration"] == f"V5-{arm}"]
+        durations = sorted(t for r in rows for t in r["turn_seconds"])
+        summary["arms"][arm] = {"runs": len(rows), "complete": sum(r["status"] == "complete" for r in rows),
+            "turns": len(durations), "turn_median_seconds": statistics.median(durations) if durations else None,
+            "turn_p95_seconds": durations[min(len(durations) - 1, int(len(durations) * .95))] if durations else None,
+            "model_calls": sum(r["usage"]["runtime"].get("calls", 0) for r in rows),
+            "task_success_rate": statistics.mean(r["task_success"] for r in rows)
+                if rows and all(r.get("task_success") is not None for r in rows) else None,
+            "stale_assertions": sum(bool((r.get("verdict") or {}).get("stale_assertion")) for r in rows),
+            "unsupported_assertions": sum(bool((r.get("verdict") or {}).get("unsupported_assertion")) for r in rows),
+            "critical_failures": [f'{r["id"]}/{r["trial"]}' for r in rows
+                if r["family"] in ("corrections", "forgetting", "isolation", "tools") and (
+                    not r.get("action_check") or any((r.get("verdict") or {}).get(k)
+                        for k in ("stale_assertion", "unsupported_assertion")))]}
+    long_rows = [r for r in results if r["turns"] > 8]
+    short_rows = [r for r in results if r["turns"] == 8]
+    gain = paired_interval(long_rows, "V5-D", "V5-A", "task_success")
+    short = paired_interval(short_rows, "V5-D", "V5-A", "task_success")
+    baseline = [r["task_success"] for r in long_rows if r["configuration"] == "V5-A" and r.get("task_success") is not None]
+    critical = sum(len(summary["arms"][a]["critical_failures"]) for a in ("C", "D"))
+    # Ratios are paired by scenario/trial and then clustered by scenario. Missing
+    # provider usage cannot be substituted with byte estimates.
+    ratios = {"tokens": [], "latency": []}
+    grouped = {}
+    for row in results:
+        grouped.setdefault((row["id"], row["trial"]), {})[row["configuration"]] = row
+    for pair in grouped.values():
+        if not {"V5-A", "V5-D"} <= set(pair):
+            continue
+        a, d = pair["V5-A"], pair["V5-D"]
+        av, dv = a["usage"]["runtime"], d["usage"]["runtime"]
+        succeeded = a.get("task_success") is True and d.get("task_success") is True
+        total_a = sum(av[k] for k in ("input_tokens", "output_tokens")) if succeeded and av.get("usage_complete") else None
+        total_d = sum(dv[k] for k in ("input_tokens", "output_tokens")) if succeeded and dv.get("usage_complete") else None
+        latency_a = statistics.median(a["turn_seconds"]) if a["turn_seconds"] else None
+        latency_d = statistics.median(d["turn_seconds"]) if d["turn_seconds"] else None
+        for name, value in (("tokens", 1 - total_d / total_a if total_a and total_d is not None else None),
+                            ("latency", latency_d / latency_a if latency_a and latency_d is not None else None)):
+            if (name == "tokens" and a["turns"] <= 8) or (name == "latency" and a["turns"] != 8):
+                continue
+            ratios[name].extend([{**d, "metric": value}, {**a, "metric": 0 if value is not None else None}])
+    token_interval = paired_interval(ratios["tokens"], "V5-D", "V5-A", "metric", statistic="median")
+    latency_interval = paired_interval(ratios["latency"], "V5-D", "V5-A", "metric", statistic="median")
+    def bound(result, index):
+        return result["interval_95"][index] if result["interval_95"] is not None and not result["missing_pairs"] else None
+    return {"summary": summary, "quality_metrics": {
+        "long_task_gain_lower_95": bound(gain, 0), "short_task_change_lower_95": bound(short, 0),
+        "baseline_long_success": statistics.mean(baseline) if baseline else None,
+        "runtime_reduction_lower_95": bound(token_interval, 0),
+        "short_latency_ratio_upper_95": bound(latency_interval, 1), "critical_failures": critical},
+        "paired_quality": {"long_success": gain, "short_success": short,
+                           "runtime_reduction": token_interval, "short_latency_ratio": latency_interval}}

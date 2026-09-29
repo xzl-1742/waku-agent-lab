@@ -29,6 +29,8 @@ def test_projection_bounds_history_and_hides_trace_content(tmp_path):
     assert len(data["events"]) == 100 and "secret_text" not in data["events"][0]
     (tmp_path / "comparison_report.json").write_text("{bad")
     assert projection([], app.conn, app.settings)["comparison"]["status"] == "invalid"
+    (tmp_path / "comparison_report.json").write_text("[]")
+    assert projection([], app.conn, app.settings)["comparison"]["status"] == "invalid"
 
 
 @pytest.mark.parametrize("context", ["window", "budget", "compact"])
@@ -90,3 +92,26 @@ def test_competing_sessions_keep_scope_and_trace_identity(tmp_path):
     ledger = [json.loads(line) for line in (tmp_path / "usage.jsonl").read_text().splitlines()]
     assert {r["session_id"] for r in ledger} == {"one", "two"}
     assert len({r["turn_id"] for r in ledger}) == 2
+
+
+def test_parallel_graph_nodes_keep_call_context_without_leaking_between_nodes():
+    from waku.graph.engine import START, Graph, Node, run_graph
+    from waku.ops.accounting import call_context
+
+    graph = Graph("attribution")
+    def node(state):
+        context = call_context.get()
+        call_context.set({"session_id": "node-local"})
+        return {state["_key"]: context} if "_key" in state else {}
+    def observe(key):
+        return lambda state: node({**state, "_key": key})
+    for key in ("left", "right"):
+        graph.add_node(Node(key, observe(key)))
+        graph.add_edge(START, key)
+    token = call_context.set({"session_id": "session", "turn_id": "turn"})
+    try:
+        result = run_graph(graph, {})
+        assert result["left"] == result["right"] == {"session_id": "session", "turn_id": "turn"}
+        assert call_context.get()["session_id"] == "session"
+    finally:
+        call_context.reset(token)

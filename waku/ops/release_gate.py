@@ -128,7 +128,7 @@ def main(argv=None) -> int:
         try:
             comparison = json.loads(args.comparison.read_text(encoding="utf-8"))
             result = promotion(comparison)
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
             result = "incomplete"
         comparison_result = {"status": result, "path": str(args.comparison)}
     record = report(suites, args.output, comparison_result)

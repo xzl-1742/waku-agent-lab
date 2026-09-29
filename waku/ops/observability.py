@@ -60,6 +60,8 @@ def projection(events, conn, settings):
             if path.stat().st_size > 2_000_000:
                 raise ValueError("Comparison summary is too large")
             data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not isinstance(data.get("summary", {}), dict):
+                raise TypeError("Invalid comparison summary")
             comparison = {k: data.get(k) for k in ("experiment", "status", "quality_status", "promotion_status", "trials", "summary", "source")}
         except (OSError, ValueError, TypeError):
             comparison = {"status": "invalid", "quality_status": "incomplete"}

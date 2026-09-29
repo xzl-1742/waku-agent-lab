@@ -1,7 +1,33 @@
 """Strict usage totals; incomplete measurements never turn into zero cost."""
 
 import json
+import math
 from collections import Counter
+
+
+def load_rates(path):
+    """Read an explicit price artifact; no defaults or network discovery."""
+    from datetime import date
+
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(rows, list):
+        raise TypeError("Rates must be a list")
+    rates = {}
+    for row in rows:
+        if not isinstance(row, dict) or any(not row.get(k) for k in ("provider", "model", "source", "checked_at")):
+            raise ValueError("Rates require provider, model, source and checked_at provenance")
+        date.fromisoformat(row["checked_at"])
+        for key in ("input", "output", "cached_input", "cache_creation"):
+            value = row.get(key)
+            if key not in row and key not in ("input", "output"):
+                continue
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ValueError("Rates must be finite non-negative numbers")
+        identity = (row["provider"], row["model"])
+        if identity in rates:
+            raise ValueError("Duplicate model rate")
+        rates[identity] = {k: v for k, v in row.items() if k not in ("provider", "model")}
+    return rates
 
 
 def read_ledger(home):
