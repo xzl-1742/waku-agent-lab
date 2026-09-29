@@ -314,6 +314,84 @@ The final isolated suite passed **1251 checks**, with 63 skips. Ruff, the skills
 validator and generated environment-template checks passed. The strict release
 gate retained `quality incomplete` because full live acceptance is still missing.
 
+## Evidence repair and long-dialogue follow-up, 2026-09-29
+
+The follow-up executed 43 runtime scenario runs and 800 user turns using
+`deepseek-flash` with thinking disabled. It completed the six short development
+cases across A-D, four 32-turn cases across A-D, and three focused 32-turn D runs.
+Two additional judge-only passes reused the short run's saved evidence. No user
+task or tool was replayed by those scoring passes. The runtime source and scoring
+source were stable within each batch; their hashes remain in the raw reports.
+
+| Batch | Runtime runs | User turns | Provider calls | Result |
+|---|---:|---:|---:|---|
+| Short development cases | 24 | 192 | 547 | All conversations finished; one initial judge JSON response failed |
+| First judge-only pass | 0 | 0 | 85 | All 24 rows scored; 20 provisional passes |
+| Four long development cases | 16 | 512 | 1,232 | All conversations finished; 21 checkpoints published; one probe verdict was invalid |
+| Final judge-only pass | 0 | 0 | 85 | All 24 rows scored; 21 provisional passes |
+| Focused D verification | 3 | 96 | 233 | Seven checkpoints published; two tasks passed, correction recall failed |
+
+All **2,182 provider calls** returned measured usage. They used 2,385,833 input
+tokens, including 1,377,144 cache hits, and 72,741 output tokens. The recorded
+official off-peak prices give **CNY 1.32719588 estimated spend**. The shared budget
+journal settled CNY 2.65439176 at peak prices, with no unresolved reservations,
+below the CNY 5 cap. Balance observations changed from CNY 24.82 before the
+campaign to CNY 23.53 afterwards; billing lag and unrelated account activity
+prevent treating the immediate delta as the invoice.
+
+The final rubric matched all 15 proposed examples in both regrading passes.
+These examples were not independently reviewed. The rubric and evidence evolved
+between batches, and free-text judgments still varied. Neither the 21/24 short
+score nor the earlier long-run scores establish release quality. Initial long
+checkpoint scoring lacked full assistant-message evidence; the final focused
+runs captured that evidence. Earlier artifacts were preserved, not rewritten.
+
+### Observed failures and retained behavior
+
+- B (`compact/legacy/legacy`) repeated the forgotten synthetic address in its
+  final answer and all three post-deletion checkpoints. The judge initially
+  excused the answer as historical context. The new deterministic disclosure
+  check rejects it. A, C and D did not disclose that value in this long case.
+- D retained the corrected budget of 350 in its actual memory store but failed
+  to retrieve it for the final question in both long attempts. Its later
+  checkpoint also omitted the current requirement. The next runtime fix should
+  trace retrieval decisions and evidence delivery after correction and compaction.
+- C's window-only configuration lost the earlier budget constraint in the long
+  run. D's focused constraint run returned the correct limit and passed all
+  three checkpoint checks. D's focused forgetting run kept memory empty,
+  disclosed no address and passed both checkpoint checks.
+- Stored facts included unsupported claims about tool availability, and a
+  legacy fact stated 512 fixture characters when the receipt contained 1,024.
+  These are concrete consolidation-quality failures. Some other memory scores
+  still reflect judge disagreement about filler-log descriptions.
+- The long tool case exposed a vague fixture-action description and confusion
+  between an action receipt and an unrelated log's unverified status. The
+  description now names the requested action. This change was not validated by
+  a fresh tool-case run in this campaign; its regression check is offline only.
+
+The long-run runtime totals below include gate, answer, consolidation and
+compaction calls, but exclude judges. They are observations from one attempt
+per case, including failed tasks, not evidence of a quality-preserving saving.
+
+| Policy | Runtime input tokens | Runtime output tokens | Runtime calls | Checkpoints |
+|---|---:|---:|---:|---:|
+| A | 333,897 | 5,083 | 288 | 0 |
+| B | 319,501 | 12,284 | 300 | 12 |
+| C | 261,830 | 6,164 | 284 | 0 |
+| D | 318,692 | 10,220 | 294 | 9 |
+
+The local summary is `eval-results/flash-evidence-summary-20260929.json`. It
+records report paths, SHA-256 hashes, source commits, raw token totals, literal
+disclosure checks and remaining limitations. The budget journal is
+`eval-results/flash-evidence-campaign-20260929.jsonl`. All reports and usage
+ledgers remain ignored by Git; no result was imported into the user's runtime.
+
+The final isolated suite passed **1274 checks**, with 63 skips. Ruff, skill
+validation and the generated environment-template check passed. Full live
+acceptance remains incomplete: corrected-fact recall, consolidation quality,
+judge review, reserved coverage and a second provider still need work. Defaults
+remain unchanged, and no 96-turn or full-matrix live acceptance claim is made.
+
 ## Policy rollback
 
 Select `WAKU_CONTEXT_POLICY=budget`, `WAKU_MEMORY_POLICY=legacy` and
