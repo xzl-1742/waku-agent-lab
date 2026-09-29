@@ -67,7 +67,7 @@ class Session:
         self.session_id = session_id
         self.history: list[dict] = []
 
-    def build_system(self, user_message: str, notify=None) -> str:
+    def build_system(self, user_message: str, notify=None, checkpoint_hint="", dialogue=None) -> str:
         from datetime import datetime
 
         # The agent runs on your laptop, so it should know your laptop's clock.
@@ -85,7 +85,16 @@ class Session:
             # Hero moment #1: a cheap judge decides IF we retrieve at all —
             # default-on retrieval is slow and biases answers (see
             # memory/retrieval_gate.py for the why).
-            retrieved = self.memory.gated_retrieve(user_message, notify=notify)
+            if self.settings.retrieval_policy == "selective":
+                from waku.memory.retrieval import RULE
+
+                recent = self.history[-min(4, self.settings.history_turns * 2):] if self.settings.history_turns else []
+                retrieved = self.memory.gated_retrieve(user_message, notify=notify,
+                                                       dialogue=recent if dialogue is None else dialogue,
+                                                       checkpoint=checkpoint_hint)
+                parts.append("\n" + RULE)
+            else:
+                retrieved = self.memory.gated_retrieve(user_message, notify=notify)
             if retrieved:
                 parts.append("\nRelevant memory:\n" + retrieved)
             skills = self.memory.matching_skills(user_message)

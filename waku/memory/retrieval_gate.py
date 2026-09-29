@@ -19,6 +19,8 @@ import json
 
 import anthropic
 
+from waku.runtime.context import TurnStopped
+
 GATE_PROMPT = """\
 You are a retrieval gate for a personal assistant's long-term memory.
 Given the user's message, decide if answering well requires the user's stored
@@ -51,5 +53,7 @@ def should_retrieve(
             return True, message, "gate returned no JSON — failing open"
         decision = json.loads(text[text.index("{") : text.rindex("}") + 1])
         return bool(decision.get("retrieve")), decision.get("query", message), decision.get("reason", "")
+    except TurnStopped:
+        raise
     except Exception as exc:
         return True, message, f"gate failed open ({type(exc).__name__})"

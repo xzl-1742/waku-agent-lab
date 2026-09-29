@@ -25,11 +25,14 @@ _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 def make_manage_memory_tool(memory, result_reader=None) -> Tool:
     facts = memory.facts
     episodes = memory.episodes
+    selective = getattr(memory, "retrieval", None)
 
     def manage_memory(action: str, kind: str = "fact", id: int | str = 0,
                       query: str = "", content: str = "", subject: str = "",
-                      result_id: str = "", offset: int = 0, limit: int = 1024) -> str:
+                      result_id: str = "", offset: int = 0, limit: int = 1024, _notify=None) -> str:
         action = (action or "").lower()
+        if selective and action in ("search", "recent", "read"):
+            return selective.tool(action, query, kind, id, offset, limit, _notify or (lambda kind, event: None))
         if action == "read_result":
             if result_reader is None:
                 return "Error: result reading is unavailable in this runtime"
@@ -67,6 +70,10 @@ def make_manage_memory_tool(memory, result_reader=None) -> Tool:
             "Search, correct, or delete the user's long-term memory (facts and episodes). "
             "ALWAYS search first to get the id, then update or delete that id. "
             "Use when the user says something you remember is wrong or should be forgotten."
+            + (" Also search to recover missing personal context (two searches per turn). "
+               "Use read with kind/id for details, offset/limit in characters (three pages). "
+               "Use recent with kind=episode only for explicit recent-event requests."
+               if selective else "")
             + (" Use read_result to read a saved tool result in this session, using its result_id. "
                "offset/limit are UTF-8 bytes; use next_offset for the next page. "
                "Repeated read_result calls are allowed; never repeat the original action to read it."
@@ -76,7 +83,7 @@ def make_manage_memory_tool(memory, result_reader=None) -> Tool:
             "type": "object",
             "properties": {
                 "action": {"type": "string", "enum": ["search", "update", "delete"]
-                           + (["read_result"] if result_reader else [])},
+                           + (["read_result"] if result_reader else []) + (["read", "recent"] if selective else [])},
                 "kind": {"type": "string", "enum": ["fact", "episode"], "description": "default fact"},
                 "id": {"type": ["integer", "string"],
                        "description": "row id (from a prior search); a number for sqlite, a page id string when the notion backend is active"},
@@ -87,10 +94,13 @@ def make_manage_memory_tool(memory, result_reader=None) -> Tool:
                     "offset": {"type": "integer", "minimum": 0},
                     "limit": {"type": "integer", "minimum": 1}}
                    if result_reader else {}),
+                **({"offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1}}
+                   if selective else {}),
             },
             "required": ["action"],
         },
         fn=manage_memory,
+        wants_notify=bool(selective),
     )
 
 

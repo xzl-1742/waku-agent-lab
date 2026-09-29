@@ -61,6 +61,11 @@ class Memory:
         if isinstance(self.episodes, SqliteEpisodeStore):
             self.episodes.lifecycle = self.lifecycle
         self.lifecycle.after_change = self.export_markdown
+        self.retrieval = None
+        if settings.retrieval_policy == "selective":
+            from waku.memory.retrieval import Retrieval
+
+            self.retrieval = Retrieval(self)
         self.skills = SkillLoader([*bundled_skill_dirs(), settings.home / "skills"])
 
     @staticmethod
@@ -96,7 +101,9 @@ class Memory:
         return SqliteEpisodeStore(conn)
 
     # ---- retrieval (gated — see retrieval_gate.py for why)
-    def gated_retrieve(self, message: str, notify=None) -> str:
+    def gated_retrieve(self, message: str, notify=None, dialogue=(), checkpoint="") -> str:
+        if self.retrieval:
+            return self.retrieval.gated(message, dialogue, checkpoint, notify)
         retrieve, query, reason = retrieval_gate.should_retrieve(
             self.client, self.settings.small_model, message
         )

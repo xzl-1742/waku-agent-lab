@@ -84,6 +84,8 @@ class Waku:
         # them with the turn (the reopened-thread telemetry the dashboard shows)
         import time
         self._sync_memory_policy()
+        if self.memory.retrieval:
+            self.memory.retrieval.reset()
         command, _, arguments = user_message.strip().partition(" ")
         if command.lower().split("@")[0] == "/compact":
             return (LoopResult(reply="Use /compact without arguments.") if arguments
@@ -195,7 +197,26 @@ class Waku:
         """The classic turn: assemble working memory, run THE loop. Extracted
         verbatim so the graph's full_agent node calls the SAME code as the
         flag-off default — loop-as-a-node can never drift from loop-as-default."""
-        system = self.session.build_system(user_message, notify=notify)
+        hint, dialogue = "", None
+        if self.memory.retrieval and self.compactor and self.settings.history_turns:
+            import json
+
+            from waku.runtime.checkpoints import validate_summary
+
+            checkpoint = self.checkpoints.latest(self.session.session_id)
+            if checkpoint:
+                try:
+                    summary = json.loads(checkpoint["summary_json"])
+                    eligible = {r["id"] for turn in self.checkpoints.sources(self.session.session_id, active_turn=self._turn_record.turn_id)
+                                for r in turn.rows if r["id"] <= checkpoint["covered_through"]}
+                    validate_summary(summary, eligible)
+                except (ValueError, TypeError) as exc:
+                    raise TurnStopped("The saved checkpoint is invalid; retrieval did not use its hints.") from exc
+                hint = "\n".join(item["text"] for items in summary.values() for item in items)
+            turns = self.checkpoints.sources(self.session.session_id, checkpoint["covered_through"] if checkpoint else 0,
+                                            self._turn_record.turn_id)
+            dialogue = [message for turn in turns[-2:] for message in turn.messages if isinstance(message["content"], str)]
+        system = self.session.build_system(user_message, notify=notify, checkpoint_hint=hint, dialogue=dialogue)
         # Start with the last N exchanges; the loop additionally checks total
         # input size under the budget policy. Original records stay in state.db.
         window = self.settings.history_turns * 2

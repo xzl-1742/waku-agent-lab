@@ -99,6 +99,9 @@ class Settings:
     # Consolidate (distill chats into durable facts) only after N new exchanges.
     consolidate_every: int = field(default_factory=lambda: int(os.getenv("WAKU_CONSOLIDATE_EVERY", "6")))
     retrieval_top_k: int = field(default_factory=lambda: int(os.getenv("WAKU_RETRIEVAL_TOP_K", "4")))
+    retrieval_policy: str = field(default_factory=lambda: os.getenv("WAKU_RETRIEVAL_POLICY", "legacy"))
+    retrieval_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_RETRIEVAL_TOKENS", "1024")))
+    retrieval_gate_tokens: int = field(default_factory=lambda: int(os.getenv("WAKU_RETRIEVAL_GATE_TOKENS", "2048")))
     # 'sqlite' (default, zero setup) or 'supabase' (pgvector upgrade path — see launch-rag).
     semantic_store: str = field(default_factory=lambda: os.getenv("WAKU_SEMANTIC_STORE", "sqlite"))
     # 'sqlite' (default, zero setup) or 'notion' (episodes live in a Notion database).
@@ -161,6 +164,14 @@ class Settings:
     )
 
     def __post_init__(self) -> None:
+        if self.retrieval_policy not in ("legacy", "selective"):
+            raise ValueError("retrieval_policy must be legacy or selective")
+        if self.retrieval_policy == "selective" and (self.semantic_store != "sqlite" or self.episodic_store != "sqlite"):
+            raise ValueError("Selective retrieval currently requires SQLite facts and episodes; remote stores use legacy retrieval")
+        if not 128 <= self.retrieval_tokens <= 8192 or not 1024 <= self.retrieval_gate_tokens <= 8192:
+            raise ValueError("retrieval_tokens must be 128..8192 and retrieval_gate_tokens 1024..8192")
+        if self.retrieval_policy == "selective" and not 1 <= self.retrieval_top_k <= 16:
+            raise ValueError("selective retrieval_top_k must be 1..16")
         if self.memory_policy not in ("legacy", "lifecycle"):
             raise ValueError("memory_policy must be legacy or lifecycle")
         if self.memory_scope not in ("global", "project", "session"):
