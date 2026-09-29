@@ -26,7 +26,7 @@ def plan(split="reserved", trials=5):
             "tools": ["save_note", "manage_memory", "record_action", "read_fixture"]}
 
 
-def execute(args, *, client_factory=None):
+def execute(args, *, client_factory=None, should_stop=None):
     # Only an explicit command may reach this point. Discovery of a user's
     # dotenv is disabled before configuration or provider modules are imported.
     if not args.live:
@@ -142,6 +142,8 @@ def execute(args, *, client_factory=None):
         order = [(case, arm, trial) for case in cases for trial in range(1, args.trials + 1) for arm in config["arms"]]
         random.Random(config["seed"]).shuffle(order)
         for case, arm, trial in order:
+            if should_stop is not None and should_stop():
+                break
             rows, replies, actions, durations = [], [], [], []
             capture = ProbeCapture(case)
             home = root / arm / str(trial) / case["id"]

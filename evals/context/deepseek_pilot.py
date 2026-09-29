@@ -83,7 +83,7 @@ def factory(key, budget, output):
     from waku.loop.models import OpenAICompatClient
     from waku.ops.accounting import sdk_call
 
-    sdk = openai.OpenAI(api_key=key, base_url=BASE, max_retries=0, timeout=30,
+    sdk = openai.OpenAI(api_key=key, base_url=BASE, max_retries=0, timeout=90,
         http_client=openai.DefaultHttpxClient(follow_redirects=False, trust_env=False))
 
     def invoke(**request):
@@ -98,8 +98,11 @@ def factory(key, budget, output):
             if budget.calls % 10 == 0:
                 print(f"Flash requests: {budget.calls}; conservative spend CNY {budget.upper:.4f}", flush=True)
             return response
-        except Exception:
+        except Exception as exc:
             budget.stopped = True
+            with (output / "deepseek-errors.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"request_number": budget.calls, "error_type": type(exc).__name__,
+                    "reservation_cny": str(reservation), "cost_upper_cny": str(budget.upper)}) + "\n")
             # Do not print provider bodies or request headers on a failure.
             raise PilotStopped("DeepSeek request failed; further paid requests stopped") from None
 
@@ -144,12 +147,12 @@ def run(args):
         output=args.output, split="development", trials=1, max_calls=args.max_calls, case_ids=selected)
     report = None
     try:
-        report = live.execute(settings, client_factory=make_client)
+        report = live.execute(settings, client_factory=make_client, should_stop=lambda: budget.stopped)
         return report
     finally:
         if close:
             close[1]()
-        spend = {"model": MODEL, "thinking": "disabled", "sdk_retries": 0,
+        spend = {"model": MODEL, "thinking": "disabled", "sdk_retries": 0, "timeout_seconds": 90,
             "budget_cny": str(budget.limit), "conservative_spend_cny": str(budget.upper),
             "requests": budget.calls, "stopped": budget.stopped, "balance_before_cny": before,
             "pricing_source": PRICING, "pricing_checked_at": "2026-09-29",

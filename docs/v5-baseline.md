@@ -195,7 +195,9 @@ it prints a plan without reading credentials. The default selects six short
 development cases across all four arms; repeat `--case ID` to select others.
 Choose a fresh `--output` directory for each run.
 
-The pilot disables SDK retries and redirects. Before each request, it reserves
+The pilot disables SDK retries and redirects and uses a 90-second SDK timeout.
+It logs only the exception type when a request fails and stops before starting
+another scenario. Before each request, it reserves
 the full advertised context plus maximum output at the official peak prices
 checked on 2026-09-29. Provider usage releases unused reserves without assuming
 cache discounts. A transport error or missing usage stops further paid calls.

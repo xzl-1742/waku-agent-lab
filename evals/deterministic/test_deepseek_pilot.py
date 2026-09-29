@@ -58,7 +58,7 @@ def test_transport_disables_thinking_retries_and_redirects_and_stops_after_error
         raise RuntimeError("synthetic transport failure")
     def sdk(**settings):
         assert settings["base_url"] == "https://api.deepseek.com"
-        assert settings["max_retries"] == 0 and settings["timeout"] == 30
+        assert settings["max_retries"] == 0 and settings["timeout"] == 90
         assert not settings["http_client"].follow_redirects
         settings["http_client"].close()
         return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)), close=lambda: None)
@@ -73,4 +73,8 @@ def test_transport_disables_thinking_retries_and_redirects_and_stops_after_error
     assert observed[0]["extra_body"] == {"thinking": {"type": "disabled"}}
     assert observed[0]["max_tokens"] == 10 and "max_completion_tokens" not in observed[0]
     assert budget.calls == 1 and budget.upper > 2
+    import json
+    error = json.loads((tmp_path / "deepseek-errors.jsonl").read_text())
+    assert error["error_type"] == "RuntimeError" and error["request_number"] == 1
+    assert "synthetic transport failure" not in json.dumps(error)
     close()

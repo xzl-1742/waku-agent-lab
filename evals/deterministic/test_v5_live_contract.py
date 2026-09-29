@@ -52,7 +52,7 @@ def test_live_aggregation_does_not_replace_unknown_tokens_with_estimates():
     assert result["quality_metrics"]["runtime_reduction_lower_95"] is None
 
 
-@pytest.mark.parametrize("mode", ["complete", "allowance", "startup", "stale_memory", "action", "exploratory"])
+@pytest.mark.parametrize("mode", ["complete", "allowance", "startup", "stale_memory", "action", "exploratory", "stop"])
 def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_path, monkeypatch, mode):
     import dotenv
     import dotenv.main
@@ -102,7 +102,12 @@ def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_p
     labels.write_text(json.dumps({"reviewed": mode != "exploratory", "reviewer": "synthetic test", "cases": [{"id": "test"}]}))
     result = execute(SimpleNamespace(live=True, provider="anthropic", model="scripted-main", small_model="scripted-small",
         judge_model="scripted-judge", calibration=labels, output=tmp_path / "result", split="development", trials=1,
-        max_calls=2 if mode == "allowance" else 10, exploratory=mode == "exploratory", case_ids=["synthetic"]))
+        max_calls=2 if mode == "allowance" else 10, exploratory=mode == "exploratory", case_ids=["synthetic"]),
+        should_stop=lambda: mode == "stop")
+    if mode == "stop":
+        assert result["actual_runs"] == 0 and result["expected_runs"] == 1
+        assert result["status"] == result["promotion_status"] == "incomplete"
+        return
     assert result["actual_runs"] == 1
     row = result["cases"][0]
     assert json.loads((tmp_path / "result" / "report.json").read_text())["status"] == result["status"]
