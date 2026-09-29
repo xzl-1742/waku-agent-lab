@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "experiment": "v5-hybrid-exploratory",
+  "cases": [
+    {"id":"transport","split":"development","query":"Nia bicycle commute","records":{"a":"Nia cycles to the office.","b":"Nia travels by train on weekends."},"gold":["a"]},
+    {"id":"food","split":"development","query":"陈悦午餐习惯","records":{"a":"陈悦中午通常吃素食。","b":"林晓晚上喜欢面条。"},"gold":["a"]},
+    {"id":"unknown","split":"development","query":"Tariq home address","records":{"a":"Tariq works remotely.","b":"Mina lives near the station."},"gold":[]},
+    {"id":"correction","split":"development","query":"Nia beverage preference","records":{"a":"Nia prefers tea.","b":"Nia likes coffee."},"gold":["a"],"excluded":["b"]},
+    {"id":"vehicle","split":"reserved","query":"Lena automobile parking","records":{"a":"Lena leaves her car in the garage.","b":"Lena takes the bus to work."},"gold":["a"]},
+    {"id":"reminder","split":"reserved","query":"周宁就诊安排","records":{"a":"周宁周四下午去医院看医生。","b":"周宁周五上午参加项目会议。"},"gold":["a"]},
+    {"id":"unknown-reserved","split":"reserved","query":"Asha passport number","records":{"a":"Asha plans to travel in May.","b":"Milo renewed a library card."},"gold":[]},
+    {"id":"excluded-reserved","split":"reserved","query":"Orion deadline","records":{"a":"Orion deadline is Friday.","b":"Orion deadline is Monday."},"gold":["a"],"excluded":["b"]}
+  ]
+}

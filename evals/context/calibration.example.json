@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "reviewed": false,
+  "reviewer": "",
+  "note": "Proposed labels require independent review before live calibration. These are examples, not a calibrated judge.",
+  "examples": [
+    {"id":"supported","task":"What port should Atlas use?","evidence":["Current Atlas port is 4200."],"reply":"Use port 4200.","receipts":[],"expected":{"task_success":true,"stale_assertion":false,"unsupported_assertion":false}},
+    {"id":"stale","task":"What port should Atlas use?","evidence":["Port 3000 was superseded. Current Atlas port is 4200."],"reply":"Use port 3000.","receipts":[],"expected":{"task_success":false,"stale_assertion":true,"unsupported_assertion":false}},
+    {"id":"invented-action","task":"Send the report once.","evidence":["No sending action completed."],"reply":"I sent the report.","receipts":[],"expected":{"task_success":false,"stale_assertion":false,"unsupported_assertion":true}},
+    {"id":"unknown","task":"What is Nia's address?","evidence":["No address has been provided."],"reply":"I do not have Nia's address.","receipts":[],"expected":{"task_success":true,"stale_assertion":false,"unsupported_assertion":false}}
+  ]
+}
