@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 
+from waku.ops.accounting import model_stage
 from waku.runtime.checkpoints import FIELDS, SUMMARY_BYTES, validate_summary
 from waku.runtime.context import (
     ContextOverflow,
@@ -114,6 +115,7 @@ class Compactor:
             notify("compaction_failed", {"session_id": session_id, "error": str(exc), "calls": len(calls)})
             raise TurnStopped(f"Compaction stopped: {exc}. The previous checkpoint and source messages were kept.") from exc
 
+    @model_stage("compaction")
     def _summarize(self, request, calls, notify):
         call_start = time.perf_counter()
         response = None

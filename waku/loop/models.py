@@ -226,8 +226,10 @@ def get_client(settings: Settings):
         kwargs: dict = {"api_key": api_key, "timeout": timeout}
         if base_url:
             kwargs["base_url"] = base_url
-        return anthropic.Anthropic(**kwargs)
-    return OpenAICompatClient(api_key=api_key, base_url=base_url, timeout=timeout)
+        client = anthropic.Anthropic(**kwargs)
+    else:
+        client = OpenAICompatClient(api_key=api_key, base_url=base_url, timeout=timeout)
+    return client
 
 
 class OpenAICompatClient:
@@ -235,6 +237,8 @@ class OpenAICompatClient:
     OpenAI-style chat.completions API. ~60 lines is the entire difference
     between the two wire formats — worth reading once.
     """
+
+    records_sdk_calls = True
 
     def __init__(self, api_key: str, base_url: str | None = None, timeout: float = 120.0):
         import openai
@@ -298,8 +302,10 @@ class OpenAICompatClient:
         retrying on any error masked the real failure (e.g. a gpt-5.x call would
         fail for some other reason, then the max_tokens retry buried it under a
         confusing 'use max_completion_tokens' message)."""
+        from waku.ops.accounting import sdk_call
+
         try:
-            return self._client.chat.completions.create(**kwargs, **extra)
+            return sdk_call(self._client.chat.completions.create, {**kwargs, **extra})
         except Exception as exc:
             from waku.runtime.context import is_context_limit
 
@@ -310,7 +316,7 @@ class OpenAICompatClient:
                 raise
             k = dict(kwargs)
             k["max_tokens"] = k.pop("max_completion_tokens", None)
-            return self._client.chat.completions.create(**k, **extra)
+            return sdk_call(self._client.chat.completions.create, {**k, **extra})
 
     def _create(self, *, model, messages, max_tokens, system=None, tools=None):
         response = self._call(self._to_openai(
@@ -335,14 +341,12 @@ class OpenAICompatClient:
                 # _to_openai can put it back. None for every other provider.
                 extra=getattr(call, "extra_content", None),
             ))
+        from waku.ops.accounting import normalized_openai_usage
+
         usage = getattr(response, "usage", None)
         return SimpleNamespace(
             stop_reason="tool_use" if choice.tool_calls else "end_turn",
-            usage=SimpleNamespace(
-                input_tokens=getattr(usage, "prompt_tokens", 0),
-                output_tokens=getattr(usage, "completion_tokens", 0),
-                measured=usage is not None and getattr(usage, "prompt_tokens", None) is not None,
-            ),
+            usage=normalized_openai_usage(usage),
             content=blocks,
         )
 
@@ -366,17 +370,21 @@ class _OpenAIStream:
         self._text: list[str] = []
         self._tools: dict[int, dict] = {}   # index → {id, name, args}
         self._usage = None
+        self._raw_stream = None
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
+        if self._raw_stream is not None and hasattr(self._raw_stream, "close"):
+            self._raw_stream.close()
         return False
 
     @property
     def text_stream(self):
         stream = self._client._call(
             self._kwargs, stream=True, stream_options={"include_usage": True})
+        self._raw_stream = stream
         for chunk in stream:
             if getattr(chunk, "usage", None):
                 self._usage = chunk.usage
@@ -398,6 +406,8 @@ class _OpenAIStream:
                     slot.setdefault("extra", {}).update(tc.extra_content)
 
     def get_final_message(self):
+        from waku.ops.accounting import normalized_openai_usage
+
         blocks = []
         text = "".join(self._text)
         if text:
@@ -409,9 +419,6 @@ class _OpenAIStream:
         usage = self._usage
         return SimpleNamespace(
             stop_reason="tool_use" if self._tools else "end_turn",
-            usage=SimpleNamespace(
-                input_tokens=getattr(usage, "prompt_tokens", 0),
-                output_tokens=getattr(usage, "completion_tokens", 0),
-                measured=usage is not None and getattr(usage, "prompt_tokens", None) is not None),
+            usage=normalized_openai_usage(usage),
             content=blocks,
         )

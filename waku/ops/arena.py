@@ -122,11 +122,17 @@ def compare_stream(message: str, specs: list, emit, judge: bool = False,
                 for line in ledger.read_text(encoding="utf-8").splitlines():
                     try:
                         r = json.loads(line)
-                        tin, tout = tin + r.get("in", 0), tout + r.get("out", 0)
+                        if r.get("scope") != "judge":
+                            tin, tout = tin + (r.get("in") or 0), tout + (r.get("out") or 0)
                     except json.JSONDecodeError:
                         pass
             pin, pout = price_for(provider, settings.model)
             cost = round(tin / 1e6 * pin + tout / 1e6 * pout, 4)
+            from waku.ops.usage import read_ledger, summarize
+
+            measured = summarize(read_ledger(home))["runtime"]
+            if not measured["usage_complete"]:
+                cost = None
             completion = None
             if case:
                 passed, why = scoring.check_case(case, result.tool_calls)

@@ -28,6 +28,7 @@ from waku.app import Waku
 from waku.graph import run_graph
 from waku.graph.workflows.gather import DIGEST_PROMPT, build_gather_graph
 from waku.memory.locking import memory_lock
+from waku.ops.accounting import model_stage
 from waku.runtime.context import BudgetedClient, TurnStopped
 
 DEFAULT_TOPICS = "AI agent harness loop memory eval"
@@ -106,6 +107,7 @@ def _memory(settings) -> str:
             conn.close()
 
 
+@model_stage("gather")
 def _synthesize(waku, state: dict) -> str:
     """One model call, NO tools parameter. That absence is the propose-never-act
     guarantee — a model with no tool schemas cannot call a tool."""

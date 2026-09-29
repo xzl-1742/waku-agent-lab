@@ -23,6 +23,7 @@ from typing import Any
 
 import anthropic
 
+from waku.ops.accounting import model_stage
 from waku.runtime.context import (
     ContextBudget,
     ContextOverflow,
@@ -45,6 +46,7 @@ class LoopResult:
     iterations: int = 0
 
 
+@model_stage("answer")
 def run_loop(
     client: anthropic.Anthropic,
     model: str,

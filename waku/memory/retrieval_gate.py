@@ -19,6 +19,7 @@ import json
 
 import anthropic
 
+from waku.ops.accounting import model_stage
 from waku.runtime.context import TurnStopped
 
 GATE_PROMPT = """\
@@ -35,6 +36,7 @@ Anything referencing the user's life, people, plans, or history → true.
 User message: {message}"""
 
 
+@model_stage("gate")
 def should_retrieve(
     client: anthropic.Anthropic, small_model: str, message: str
 ) -> tuple[bool, str, str]:

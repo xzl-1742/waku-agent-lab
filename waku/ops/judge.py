@@ -24,6 +24,7 @@ import time
 
 from waku.config import Settings, load_settings
 from waku.loop.models import get_client
+from waku.ops.accounting import account_client, model_stage
 
 JUDGE_PROVIDER = os.getenv("WAKU_JUDGE_PROVIDER", "openai")
 JUDGE_MODEL = os.getenv("WAKU_JUDGE_MODEL", "gpt-5.6-sol")
@@ -68,10 +69,11 @@ def judge_client(provider: str | None = None, model: str | None = None):
     """
     settings = Settings(provider=provider or JUDGE_PROVIDER, model=model or JUDGE_MODEL,
                         small_model="", home=load_settings().home, apple_calendar=False)
-    client = get_client(settings)
+    client = account_client(get_client(settings), settings)
     return client, settings.model
 
 
+@model_stage("judge", scope="judge")
 def judge_reply(task: str, reply: str, provider: str | None = None,
                 model: str | None = None, tools: list | None = None) -> dict | None:
     """Grade one reply. `tools` is the list of tool names that ACTUALLY fired this
@@ -96,7 +98,7 @@ def judge_reply(task: str, reply: str, provider: str | None = None,
     resp = None
     for attempt in range(4):
         try:
-            client = get_client(settings)   # fills the provider default id
+            client = account_client(get_client(settings), settings)
             with _JUDGE_SEM:
                 resp = client.messages.create(
                     model=settings.model, max_tokens=300,

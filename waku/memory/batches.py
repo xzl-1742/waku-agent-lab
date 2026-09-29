@@ -6,6 +6,7 @@ import json
 from datetime import date
 
 from waku.memory.locking import serialized
+from waku.ops.accounting import model_stage
 from waku.runtime.context import ContextBudget, encode, fingerprint
 
 BATCH_PROMPT = """Extract durable memory from the supplied conversation data.
@@ -18,6 +19,7 @@ only explicit user correction tools may do that. Never invent source IDs.
 
 
 @serialized
+@model_stage("consolidation")
 def consolidate(memory, notify=None):
     policy, conn, settings = memory.lifecycle, memory.conn, memory.settings
     notify = notify or (lambda kind, event: None)

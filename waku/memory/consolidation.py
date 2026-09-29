@@ -18,6 +18,7 @@ import anthropic
 
 from waku.memory.episodic.store import SqliteEpisodeStore
 from waku.memory.semantic.store import SqliteFactStore
+from waku.ops.accounting import model_stage
 
 SUMMARIZER_PROMPT = """\
 You distill a personal assistant's recent conversation into long-term memory.
@@ -34,6 +35,7 @@ Exchanges:
 {log}"""
 
 
+@model_stage("consolidation")
 def consolidate_if_due(
     conn,
     client: anthropic.Anthropic,

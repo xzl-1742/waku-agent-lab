@@ -45,6 +45,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from waku.ops.accounting import model_stage
+
 # The shipped fixture is four dull probes whose only job is to document the
 # format. The interesting questions are the ones a maintainer brings — a memory
 # benchmark is only meaningful against the kind of facts their users store — so
@@ -204,6 +206,7 @@ knowledge clearly marked as general knowledge still counts as declining.
 Reply with ONLY this JSON: {{"declined": true/false}}"""
 
 
+@model_stage("judge", scope="judge")
 def adjudicate_refusal(question: str, answer: str) -> bool | None:
     """Did this reply decline? True/False, or None if the judge is unreachable.
 
@@ -652,7 +655,9 @@ def _ledger(home) -> tuple[int, int]:
             # reported 0 tokens with no error at all, because `.get(name, 0)`
             # turns a wrong field name into a plausible number. A benchmark that
             # silently reports zero cost is worse than one that crashes.
-            total += int(row["in"]) + int(row["out"])
+            if row.get("scope") == "judge":
+                continue
+            total += int(row.get("in") or 0) + int(row.get("out") or 0)
             calls += 1
         except (KeyError, ValueError, TypeError):
             continue

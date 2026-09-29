@@ -20,6 +20,7 @@ Two outputs from the same events:
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -64,6 +65,7 @@ class Tracer:
         self._otel_tracer = self._init_otel(settings)
         self._span_ctx = None
         self._trace_encoding_checked = False
+        self.accounting_enabled = False
 
     def _init_otel(self, settings: Settings):
         if not settings.otel_endpoint:
@@ -88,6 +90,9 @@ class Tracer:
             return None
 
     def _write(self, record: dict) -> None:
+        from waku.ops.accounting import call_context
+
+        record = {**(call_context.get() or {}), **record}
         # An older Windows release may have created this daily file in GBK.
         # Refuse to make a mixed-encoding JSONL file: validate once, explain how
         # to preserve the old file, and never guess or rewrite user data.
@@ -97,8 +102,17 @@ class Tracer:
                     pass
             self._trace_encoding_checked = True
         record["ts"] = _now()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+
+    def record_call(self, event: dict) -> None:
+        """The accounting owner writes once; UI observers cannot duplicate rows."""
+        record = {"ts": _now(), **event}
+        self.settings.home.mkdir(parents=True, exist_ok=True)
+        with (self.settings.home / "usage.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
+        self._write({"type": "model_call", **event})
 
     def _record_usage(self, event: dict) -> None:
         """Append one LLM call's token usage to a PERMANENT ledger (usage.jsonl).
@@ -118,12 +132,13 @@ class Tracer:
         if kind == "text":
             return  # streaming token deltas are for the live UI, not the trace
         if kind == "llm":
-            self._record_usage(event)
+            if not self.accounting_enabled:
+                self._record_usage(event)
             # stamp WHICH brain answered — in a multi-model world (shootouts,
             # live model switching) a trace without the model is half a trace
             event = {"provider": self.settings.provider,
                      "model": self.settings.model or "", **event}
-        if kind == "compaction_call":
+        if kind == "compaction_call" and not self.accounting_enabled:
             # Missing provider usage remains null; a scripted call is not free
             # measured inference. Keep cache fields and request provenance.
             record = {"ts": _now(), "provider": self.settings.provider,
@@ -148,7 +163,18 @@ class Tracer:
 
     # ---- one run = one root span + turn_start/turn_end JSONL markers
     @contextmanager
-    def turn(self, user_message: str):
+    def turn(self, user_message: str, session_id=None, turn_id=None):
+        from waku.ops.accounting import call_context
+
+        token = call_context.set({"session_id": session_id, "turn_id": turn_id or uuid.uuid4().hex})
+        try:
+            with self._turn(user_message):
+                yield self
+        finally:
+            call_context.reset(token)
+
+    @contextmanager
+    def _turn(self, user_message):
         self._write({"type": "turn_start", "user_message": user_message})
         if self._otel_tracer:
             with self._otel_tracer.start_as_current_span(

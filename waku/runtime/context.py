@@ -184,8 +184,9 @@ class ContextBudget:
         tokens = getattr(usage, "input_tokens", None)
         if tokens is None:
             return None
-        tokens += (getattr(usage, "cache_read_input_tokens", 0) or 0)
-        tokens += (getattr(usage, "cache_creation_input_tokens", 0) or 0)
+        if not getattr(usage, "cache_included_in_input", False):
+            tokens += (getattr(usage, "cache_read_input_tokens", 0) or 0)
+            tokens += (getattr(usage, "cache_creation_input_tokens", 0) or 0)
         if tokens <= 0:
             return None
         base = estimate_request(request)

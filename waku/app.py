@@ -11,6 +11,7 @@ from waku.db import connect
 from waku.loop.agent import LoopResult, Observer, run_loop
 from waku.loop.models import get_client
 from waku.memory.locking import serialized
+from waku.ops.accounting import call_context, model_stage
 from waku.ops.tracing import Tracer, compose
 from waku.runtime.checkpoints import CheckpointStore
 from waku.runtime.compaction import CompactedRequest, Compactor
@@ -26,8 +27,13 @@ class Waku:
         # the dashboard injects a cross-thread connection. Same seam either way.
         self.settings = settings or load_settings()
         self.settings.ensure_home()
+        self.tracer = Tracer(self.settings)
         self.conn = conn or connect(self.settings.home)
         self.client = client or get_client(self.settings)
+        from waku.ops.accounting import account_client
+
+        self.client = account_client(self.client, self.settings, self.tracer.record_call)
+        self.tracer.accounting_enabled = True
         self.budget = ContextBudget.from_settings(self.settings)
         self.client = guard_client(self.client, self.budget)
         if self.budget is None:
@@ -54,7 +60,6 @@ class Waku:
         self.tools = build_registry(self.conn, self.settings, self.memory, result_reader=reader)
         self.mcp_bridge = getattr(self.tools, "mcp_bridge", None)
         self._turn_record = None
-        self.tracer = Tracer(self.settings)
 
     def close(self) -> None:
         """Release external resources (MCP subprocesses). Called when the
@@ -113,7 +118,7 @@ class Waku:
             self.session.switch(self.session.session_id)
             self.memory.export_markdown()
 
-        with self.tracer.turn(user_message):
+        with self.tracer.turn(user_message, session_id=self.session.session_id, turn_id=policy.turn_id):
             # The optional graph selects quick vs full. Pre-action failures can
             # fall back to the loop; terminal errors cannot replay side effects.
             result, stopped = None, False
@@ -250,6 +255,7 @@ class Waku:
             return LoopResult(reply="Session compaction requires WAKU_CONTEXT_POLICY=compact.")
         notify = compose(observer, self.tracer.event)
         self.client.notify = notify
+        token = call_context.set({"session_id": self.session.session_id, "operation": "manual_compact"})
         try:
             self.checkpoints.import_legacy(self.session.session_id)
             checkpoint = self.compactor.compact(self.session.session_id, notify=notify)
@@ -257,6 +263,8 @@ class Waku:
                      if checkpoint else "No older complete turns need compaction.")
         except TurnStopped as exc:
             reply = str(exc)
+        finally:
+            call_context.reset(token)
         return LoopResult(reply=reply)
 
     def _respond_via_graph(self, user_message: str, notify, stream: bool) -> LoopResult | None:
@@ -270,6 +278,7 @@ class Waku:
             todays_events,
         )
 
+        @model_stage("quick_reply")
         def quick_reply(state: dict) -> str:
             prompt = QUICK_REPLY_PROMPT.format(calendar=state.get("calendar", ""),
                                                message=state["message"])

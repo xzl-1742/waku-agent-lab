@@ -4,6 +4,7 @@ import json
 import time
 from dataclasses import replace
 
+from waku.ops.accounting import model_stage
 from waku.runtime.context import ContextBudget, ContextOverflow, TurnStopped, encode, fingerprint
 from waku.runtime.records import prefix
 
@@ -49,6 +50,7 @@ def validate(text):
     return result
 
 
+@model_stage("selective_gate")
 def decide(memory, message, dialogue, checkpoint, notify):
     settings, policy = memory.settings, memory.lifecycle
     budget = getattr(memory.client, "context_budget", None) or ContextBudget.from_settings(replace(settings, context_policy="budget"))

@@ -168,7 +168,10 @@ def usage_summary(home) -> dict:
         add(by_day, day, {"date": day})
         add(by_provider, r.get("provider", "?"), {"provider": r.get("provider", "?")})
 
+    from waku.ops.usage import summarize
+
     return {
+        "measured": summarize(recs),
         "calls": len(recs),
         "total_in": sum(r.get("in") or 0 for r in recs),
         "total_out": sum(r.get("out") or 0 for r in recs),

@@ -24,6 +24,7 @@ from pathlib import Path
 
 from waku.graph.engine import END, START, Graph, Node
 from waku.graph.nodes import key_router
+from waku.ops.accounting import model_stage
 
 TRIAGE_PROMPT = """\
 You are a triage gate for a personal assistant. Given the user's message,
@@ -49,6 +50,7 @@ Today's calendar: {calendar}
 User message: {message}"""
 
 
+@model_stage("triage")
 def classify_message(client, small_model: str, message: str) -> tuple[str, str]:
     """Returns (route, reason). Fails open to "full": a broken triage must
     cost latency, never capability — mirror of retrieval_gate.should_retrieve."""

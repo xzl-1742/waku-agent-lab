@@ -38,7 +38,7 @@ def tool_block(name: str, args: dict, call_id: str = "tu_1"):
 def response(blocks, stop_reason="end_turn"):
     return SimpleNamespace(
         stop_reason=stop_reason,
-        usage=SimpleNamespace(input_tokens=0, output_tokens=0),
+        usage=SimpleNamespace(input_tokens=0, output_tokens=0, measured=False),
         content=blocks,
     )
 

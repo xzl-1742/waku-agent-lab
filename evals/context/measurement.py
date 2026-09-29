@@ -68,8 +68,8 @@ class RecordingClient:
             record["status"] = "complete"
             if not self.synthetic:
                 usage = getattr(result, "usage", None)
-                for key in ("input_tokens", "output_tokens"):
-                    record[key] = getattr(usage, key, None)
+                for key in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+                    record[key] = getattr(usage, key, None) if getattr(usage, "measured", True) else None
                 if all(record[k] is not None for k in ("input_tokens", "output_tokens")):
                     record["usage_source"] = "client_reported"
             return result

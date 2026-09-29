@@ -13,17 +13,19 @@ from deepeval.models import DeepEvalBaseLLM
 
 from waku.config import load_settings
 from waku.loop.models import get_client
+from waku.ops.accounting import account_client, model_stage
 
 
 class AnthropicJudge(DeepEvalBaseLLM):
     def __init__(self, model: str | None = None):
         self.settings = load_settings()
-        self.client = get_client(self.settings)  # fills provider-default model ids
+        self.client = account_client(get_client(self.settings), self.settings)
         self.model = model or self.settings.small_model
 
     def load_model(self):
         return self.client
 
+    @model_stage("judge", scope="judge")
     def generate(self, prompt: str, schema=None):
         if schema is not None:
             prompt += (
