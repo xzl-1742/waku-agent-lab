@@ -52,6 +52,8 @@ def test_changed_model_or_output_limit_never_reaches_transport(model, tokens):
 def test_transport_disables_thinking_retries_and_redirects_and_stops_after_error(tmp_path, monkeypatch):
     import openai
 
+    from evals.context.quality import RUBRIC
+
     observed = []
     def create(**request):
         observed.append(request)
@@ -68,9 +70,10 @@ def test_transport_disables_thinking_retries_and_redirects_and_stops_after_error
     client = make(None)
     for _ in range(2):
         with pytest.raises(PilotStopped):
-            client.messages.create(model=MODEL, messages=[{"role": "user", "content": "fixture"}], max_tokens=10)
+            client.messages.create(model=MODEL, messages=[{"role": "user", "content": RUBRIC + "fixture"}], max_tokens=10)
     assert len(observed) == 1
     assert observed[0]["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert observed[0]["response_format"] == {"type": "json_object"}
     assert observed[0]["max_tokens"] == 10 and "max_completion_tokens" not in observed[0]
     assert budget.calls == 1 and budget.upper > 2
     import json

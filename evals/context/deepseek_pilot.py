@@ -68,9 +68,14 @@ def factory(key, budget, output):
             self.messages = SimpleNamespace(create=self._create)
 
         def _call(self, kwargs, **extra):
+            from evals.context.quality import RUBRIC
+
             request = {**kwargs, **extra}
             request["max_tokens"] = request.pop("max_completion_tokens")
             request["extra_body"] = {"thinking": {"type": "disabled"}}
+            if not request.get("tools") and any(isinstance(m.get("content"), str) and m["content"].startswith(RUBRIC)
+                                               for m in request["messages"]):
+                request["response_format"] = {"type": "json_object"}
             return sdk_call(invoke, request)
 
     return lambda settings: Client(), sdk.close
@@ -105,12 +110,16 @@ def run(args):
         check_examples=getattr(args, "check_examples", False))
     report = None
     try:
-        report = live.execute(settings, client_factory=make_client, should_stop=lambda: budget.stopped)
+        if getattr(args, "rejudge", None):
+            from evals.context.rejudge import execute
+            report = execute(args.rejudge, args.output, settings, make_client, lambda: budget.stopped)
+        else:
+            report = live.execute(settings, client_factory=make_client, should_stop=lambda: budget.stopped)
         return report
     finally:
         if close:
             close[1]()
-        spend = {"model": MODEL, "thinking": "disabled", "sdk_retries": 0, "timeout_seconds": 90,
+        spend = {"model": MODEL, "thinking": "disabled", "judge_json_mode": True, "sdk_retries": 0, "timeout_seconds": 90,
             "budget_cny": str(budget.limit), "conservative_spend_cny": str(budget.upper),
             "budget_ledger": str(getattr(args, "budget_ledger", None)), "prior_spend_cny": str(budget.initial_upper),
             "batch_conservative_spend_cny": str(budget.upper - budget.initial_upper),
@@ -143,6 +152,7 @@ def main():
     parser.add_argument("--budget-ledger", type=Path, default=Path("eval-results/deepseek-flash-budget.jsonl"),
                         help="Share this durable allowance across sequential batches")
     parser.add_argument("--check-examples", action="store_true", help="Measure provisional label agreement without claiming reviewed calibration")
+    parser.add_argument("--rejudge", type=Path, help="Regrade saved synthetic evidence without repeating runtime or tools")
     parser.add_argument("--case", dest="case_ids", action="append")
     parser.add_argument("--output", type=Path, default=Path("eval-results/deepseek-flash-pilot"))
     args = parser.parse_args()

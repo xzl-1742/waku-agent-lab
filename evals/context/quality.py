@@ -22,9 +22,20 @@ A database snapshot proves its stored subject/content exists; storage metadata
 does not need user evidence. A user's 'remember X' instruction establishes X.
 Source IDs and provenance labels are metadata, not additional user facts.
 Unsupported means absent from all supplied evidence, not absent from user text
-alone. Concisely explain the decision in at most 180 characters.
+alone. Set each boolean independently using these definitions:
+- task_success: true only if the requested task is satisfied. For a stored-fact
+  check, true means the fact is supported and current. For recall/checkpoints,
+  true requires EVERY required fact; an empty store fails a nonempty requirement.
+- stale_assertion: true when a superseded/deleted value is asserted as current.
+- unsupported_assertion: true for any invented claim, including an action claimed
+  completed when no successful receipt exists or its receipt reports failure.
+  Historical evidence for an obsolete value is stale, not itself invented.
+An incorrect answer or missing required fact can have task_success=false without
+either assertion flag. A supported current fact must have task_success=true.
+Concisely explain the decision in at most 180 characters.
 Return only JSON with exactly task_success (boolean), stale_assertion
 (boolean), unsupported_assertion (boolean), reason (nonempty string <= 300 chars).
+Example supported answer: {"task_success":true,"stale_assertion":false,"unsupported_assertion":false,"reason":"Matches evidence."}
 """
 
 
@@ -92,7 +103,7 @@ def calibrate(client, model, examples, reviewed=False, required_kinds=None, prov
             labels = expected[mapping[item["id"]]]
             passed = all(verdict[k] == v for k, v in labels.items())
             results.append({"id": item["id"], "passed": passed, "verdict": verdict,
-                            "expected": labels, "kind": kinds[mapping[item["id"]]]})
+                            "expected": labels, "kind": kinds[mapping[item["id"]]], "example_id": mapping[item["id"]]})
         except Exception as exc:
             results.append({"id": item["id"], "passed": False, "error_type": type(exc).__name__})
     agreement = sum(r["passed"] for r in results) / len(results)

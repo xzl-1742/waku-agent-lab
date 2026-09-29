@@ -227,6 +227,13 @@ inventing persistence IDs. Checkpoint evidence excludes future and other-session
 actions. Memory grading projects only subject/content while reports retain
 storage metadata. Raw judge inputs are saved for auditing disagreements.
 
+The Flash pilot requests JSON output for judge calls. The rubric defines each
+boolean independently, including missing required facts and unsupported action
+claims. `--rejudge REPORT.json` scores saved version-3 exploratory evidence in a
+new output directory without replaying runtime or tools. It preserves previous
+judgments, original report hashes, separate judge usage and scoring-source
+snapshots. Rejudging cannot supply release evidence or repair missing execution.
+
 To show a completed report in a selected dashboard, run
 `python -m evals.context.publish REPORT.json --home PATH_TO_SELECTED_WAKU_HOME`.
 This replaces only `comparison_report.json` in that explicitly selected home.

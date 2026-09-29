@@ -226,6 +226,7 @@ def execute(args, *, client_factory=None, should_stop=None):
             blinded, _ = blind([item], config["seed"])
             verdict = None
             probes = capture.report()
+            runtime_error = error
             if not error and calls[0] < args.max_calls:
                 try:
                     verdict = grade(judge, args.judge_model, blinded[0])
@@ -243,6 +244,7 @@ def execute(args, *, client_factory=None, should_stop=None):
                       "status": "failed" if error else "complete", "error_type": error,
                       "replies": replies, "actual_actions": actions, "verdict": verdict, "usage": summarize(rows, rates)}
             result["judge_input"] = blinded[0]
+            result["runtime_error_type"] = runtime_error
             expected_actions = [case["old"]] if case["family"] == "tools" else []
             result["action_check"] = actions == expected_actions
             result["task_success"] = (bool(verdict["task_success"]) and not verdict["stale_assertion"]
