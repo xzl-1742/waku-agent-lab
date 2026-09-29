@@ -27,7 +27,9 @@ paired scenario uncertainty and release checks. Live execution is explicit,
 uses disposable stores and exposes only local fixture tools. It saves final
 replies, actual action receipts, verdicts and raw model-call rows. Labels supplied
 by the implementation are proposed labels; they are not independent calibration.
-The live runner has been exercised with injected offline clients only.
+The live runner has been exercised with injected offline clients only. A V5
+acceptance follow-up adds snapshots and checks after each published compaction
+and at final memory state; the original offline measurements below are unchanged.
 
 ## Frozen comparison
 
@@ -81,7 +83,7 @@ with `source_stable=true`. It verifies the final implementation, not a second
 
 ## Verification and release status
 
-The final isolated deterministic run passed **1215 checks**, with 63 skips for
+The original isolated deterministic run passed **1215 checks**, with 63 skips for
 API access, optional extras or platform requirements. Ruff, all six bundled skill
 validations, public configuration-example consistency and documentation checks
 passed. The strict gate retained `incomplete` because live coverage was not run.
@@ -104,9 +106,41 @@ partial fixture subset, incomplete calibration or a same-provider smoke report.
 Critical failures override average improvements. Full live acceptance requires
 five trials across the entire frozen matrix plus calibrated judging and a
 separate provider's reserved compatibility run. Real execution has not been run.
-The current semantic harness grades final answers and action receipts; systematic
-grading after every compaction and stored-fact extraction precision remain
-additional live acceptance work. V5 is not declared release-complete.
+The semantic harness now grades final answers, each captured checkpoint, stored
+facts and explicit required-fact recall. This capability has deterministic tests;
+its live judge quality remains unmeasured. V5 is not declared release-complete,
+and the approved six-version plan does not define a V6 milestone.
+
+### Acceptance follow-up
+
+`evals/context/probes.py` listens to the existing `compaction_completed` observer.
+It immediately copies the published revision, covered user evidence and actual
+local action receipts. Future corrections cannot relabel earlier checkpoints.
+The final snapshot enumerates visible facts with a 200-record bound; an overflow
+is incomplete, never a truncated passing sample. All arms share the evaluator's
+input log, including window/legacy runs without canonical message rows.
+
+Every snapshot is graded after runtime measurement. Checkpoint retention,
+stored-fact supportedness, required-fact recall and consolidation-only
+supportedness have explicit numerators and denominators. An empty store with a
+required remembered fact fails recall. A zero denominator stays null. Correct
+final wording cannot compensate for failed checkpoint or memory checks.
+The published SQLite checkpoint inventory must match observed and captured
+revisions. Snapshot failures are recorded without changing runtime behavior.
+
+The live report uses schema version 2. Reviewed calibration must cover successful
+and failing answer, checkpoint, memory-support and memory-recall cases. Proposed
+labels remain unreviewed. Startup failures, missing judgments and exact allowance
+exhaustion produce persisted incomplete reports. Local action tools generate
+receipts after execution; the model no longer has to guess the expected receipt.
+
+`evals/context/acceptance.py` validates raw rows, calibration verdicts, unchanged
+source snapshots and the embedded second-provider report. Display summaries
+cannot override stale claims, repeated actions, failed critical tasks or missing
+probes. It recomputes paired metrics for all cases and separately for reserved
+cases. Durations must cover every declared turn. The quality-improvement route
+does not require the token-efficiency metric used by the alternative route.
+Reports from the older schema lack this evidence and remain incomplete.
 
 An optional eight-case hybrid ranking experiment is separately frozen in
 [hybrid_cases.json](../evals/retrieval/hybrid_cases.json). It accepts externally

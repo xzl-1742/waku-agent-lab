@@ -36,6 +36,7 @@ def execute(args):
     dotenv.load_dotenv = dotenv.main.load_dotenv = lambda *a, **k: False
     dotenv.find_dotenv = dotenv.main.find_dotenv = lambda *a, **k: ""
     from evals.context.measurement import digest, source_snapshot
+    from evals.context.probes import ProbeCapture, grade_probes, metrics, probe_status
     from evals.context.quality import blind, calibrate, grade
     from waku.app import Waku
     from waku.config import Settings
@@ -62,6 +63,10 @@ def execute(args):
     from waku.ops.usage import load_rates
     rates = load_rates(args.rates) if getattr(args, "rates", None) else {}
     calls = [0]
+
+    def save(report):
+        (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        return report
 
     def record_usage(row, destination):
         destination.append(row)
@@ -111,21 +116,27 @@ def execute(args):
         judge_settings.model = args.judge_model
         judge_settings.ensure_home()
         judge_rows = []
-        judge = LimitedClient(UsageClient(get_client(judge_settings), judge_settings,
-                                         lambda row: record_usage(row, judge_rows)))
-        calibration = calibrate(judge, args.judge_model, labels["cases"], reviewed=True)
+        try:
+            judge = LimitedClient(UsageClient(get_client(judge_settings), judge_settings,
+                                             lambda row: record_usage(row, judge_rows)))
+        except Exception as exc:
+            return save({"status": "incomplete", "quality_status": "incomplete", "error_type": type(exc).__name__,
+                         "reason": "Judge client initialization failed", "promotion_status": "incomplete"})
+        calibration = calibrate(judge, args.judge_model, labels["cases"], reviewed=True,
+                                required_kinds={"answer", "checkpoint", "memory_support", "memory_recall"})
         calibration["labels_sha256"] = digest(labels)
         calibration["reviewer"] = labels["reviewer"]
         (output / "calibration.json").write_text(json.dumps(calibration, ensure_ascii=False, indent=2), encoding="utf-8")
         if calibration["status"] != "complete":
-            return {"status": "incomplete", "reason": "Judge calibration did not pass", "calibration": calibration,
-                    "usage": summarize(judge_rows, rates), "promotion_status": "incomplete"}
+            return save({"status": "incomplete", "reason": "Judge calibration did not pass", "calibration": calibration,
+                    "usage": summarize(judge_rows, rates), "promotion_status": "incomplete"})
         cases = [c for c in load_cases() if args.split == "all" or c["split"] == args.split]
         import random
         order = [(case, arm, trial) for case in cases for trial in range(1, args.trials + 1) for arm in config["arms"]]
         random.Random(config["seed"]).shuffle(order)
         for case, arm, trial in order:
             rows, replies, actions, durations = [], [], [], []
+            capture = ProbeCapture(case)
             home = root / arm / str(trial) / case["id"]
             configured = settings(home, arm)
             def build(configured=configured, rows=rows, actions=actions, case=case):
@@ -146,18 +157,21 @@ def execute(args):
                 if app.compactor:
                     app.compactor.client = app.client
                 app.tools._tools = {k: v for k, v in app.tools._tools.items() if k in ("save_note", "manage_memory")}
-                def action(receipt):
-                    actions.append(receipt)
-                    return receipt
+                def action():
+                    # A receipt belongs to the environment after execution;
+                    # asking the model to invent the fixture receipt is not a task.
+                    actions.append(case["old"])
+                    return case["old"]
                 app.tools.register(Tool("record_action", "Record one local fixture action.",
-                    {"type": "object", "properties": {"receipt": {"type": "string"}}, "required": ["receipt"]}, action))
+                    {"type": "object", "properties": {}}, action))
                 app.tools.register(Tool("read_fixture", "Read a synthetic local log.", {"type": "object", "properties": {}},
                                         lambda: "x" * (case["output_kib"] * 1024)))
                 return app
-            app = build()
-            app.session.start_new("primary-project")
+            app = None
             error = None
             try:
+                app = build()
+                app.session.start_new("primary-project")
                 for step in expand(case):
                     if calls[0] >= args.max_calls:
                         raise RuntimeError("Live call allowance exhausted")
@@ -169,15 +183,27 @@ def execute(args):
                     elif step["op"] == "switch":
                         app.session.switch(step["session"])
                     else:
+                        capture.user_message(app.session.session_id, step["message"])
                         started = time.perf_counter()
-                        reply = app.respond(step["message"], source="v5-live")
-                        durations.append(time.perf_counter() - started)
+                        try:
+                            reply = app.respond(step["message"], observer=capture.observer(app), source="v5-live")
+                        finally:
+                            durations.append(time.perf_counter() - started)
                         replies.append({"message": step["message"], "reply": reply.reply})
             except Exception as exc:
                 error = type(exc).__name__
             finally:
-                app.close()
-                app.conn.close()
+                if app is not None:
+                    capture.finish(app, actions)
+                    try:
+                        app.close()
+                    except Exception as exc:
+                        error = error or type(exc).__name__
+                    finally:
+                        try:
+                            app.conn.close()
+                        except Exception as exc:
+                            error = error or type(exc).__name__
             evidence = [case["current"]]
             if case["family"] in ("corrections", "forgetting"):
                 evidence.append(f'Superseded or forgotten value, never assert as current: {case["old"]}')
@@ -187,18 +213,28 @@ def execute(args):
                     "reply": replies[-1]["reply"] if replies else "", "receipts": actions}
             blinded, _ = blind([item], config["seed"])
             verdict = None
+            probes = capture.report()
             if not error and calls[0] < args.max_calls:
                 try:
                     verdict = grade(judge, args.judge_model, blinded[0])
                 except Exception as exc:
                     error = type(exc).__name__
+            elif not error:
+                error = "CallAllowanceExhausted"
+            if not error:
+                grade_probes(probes, judge, args.judge_model)
+                if probe_status(probes) == "incomplete":
+                    error = "ProbeCoverageIncomplete"
             result = {"id": case["id"], "arm": arm, "trial": trial, "family": case["family"],
+                      "split": case["split"], "probes": probes, "probe_metrics": metrics(probes),
                       "configuration": f"V5-{arm}", "turns": case["turns"], "turn_seconds": durations,
                       "status": "failed" if error else "complete", "error_type": error,
                       "replies": replies, "actual_actions": actions, "verdict": verdict, "usage": summarize(rows, rates)}
             expected_actions = [case["old"]] if case["family"] == "tools" else []
             result["action_check"] = actions == expected_actions
-            result["task_success"] = (bool(verdict["task_success"]) and result["action_check"] if verdict else None)
+            result["task_success"] = (bool(verdict["task_success"]) and not verdict["stale_assertion"]
+                                      and not verdict["unsupported_assertion"] and result["action_check"]
+                                      and probe_status(probes) == "complete" if verdict and not error else None)
             results.append(result)
             all_rows.extend(rows)
             with (output / "runs.jsonl").open("a", encoding="utf-8") as handle:
@@ -208,21 +244,28 @@ def execute(args):
                 break
         from evals.context.quality import aggregate, promotion, second_provider_status
         final_source = source_snapshot()
-        secondary = json.loads(args.second_provider.read_text(encoding="utf-8")) if getattr(args, "second_provider", None) else None
-        report = {"schema_version": 1, "runner": "live", "experiment": config["experiment"], "manifest_sha256": digest(config),
+        secondary, secondary_error = None, None
+        if getattr(args, "second_provider", None):
+            try:
+                secondary = json.loads(args.second_provider.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                secondary_error = type(exc).__name__
+        report = {"schema_version": 2, "runner": "live", "experiment": config["experiment"], "manifest_sha256": digest(config),
                 "source": source, "source_end": final_source, "source_stable": source == final_source,
                 "provider": args.provider, "models": {"answer": args.model, "small": args.small_model, "judge": args.judge_model},
                 "rates": [{"provider": p, "model": m, **r} for (p, m), r in rates.items()],
                 "status": "complete" if len(results) == len(order) and all(not r["error_type"] for r in results) else "incomplete",
                 "trials": args.trials, "expected_runs": len(order), "actual_runs": len(results), "cases": results,
                 "calibration": calibration, "usage": summarize(all_rows + judge_rows, rates),
-                "quality_status": "complete" if len(results) == len(order) and all(r["verdict"] for r in results) else "incomplete",
+                "quality_status": "complete" if len(results) == len(order) and all(r["verdict"] and not r["error_type"] for r in results) else "incomplete",
                 "second_provider": second_provider_status(secondary, args.provider),
+                "second_provider_evidence": secondary,
+                "second_provider_error": secondary_error,
                 "limits": ["Independent second-provider verification remains required before promotion.",
                            "Call allowance counts client requests; explicit adapter retries can add SDK invocations."]}
         report.update(aggregate(results, [(c["id"], f"V5-{a}", t) for c, a, t in order]))
         report["promotion_status"] = promotion(report)
-        return report
+        return save(report)
 
 
 def main():

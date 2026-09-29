@@ -141,7 +141,11 @@ calibration cases and a client-call allowance. It uses disposable SQLite stores
 and local fixture tools. It disables dotenv discovery. Optional `--rates` reads
 dated price provenance; absent usage or prices leave costs unknown. The harness
 stores raw call rows separately from blind verdicts and checks actual action
-receipts. `--second-provider` validates a separate provider's reserved smoke report.
+receipts, each published checkpoint and final stored memory. Calibration requires
+positive and negative cases for all four grading tasks. `--second-provider`
+embeds a separate provider's reserved smoke report for independent revalidation.
+Raw verdicts, snapshot coverage and turn timings determine acceptance; display
+totals cannot override them. Reserved cases receive a separate gate decision.
 Incomplete coverage, source changes or missing evidence cannot promote defaults.
 
 The optional `python -m evals.retrieval.hybrid` experiment uses a separate frozen

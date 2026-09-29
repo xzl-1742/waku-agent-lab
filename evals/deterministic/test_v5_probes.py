@@ -6,7 +6,14 @@ from types import SimpleNamespace
 import pytest
 
 from evals.context.fixtures import expand, load_cases
-from evals.context.probes import ProbeCapture, checks, expectations, grade_probes, metrics, probe_status
+from evals.context.probes import (
+    ProbeCapture,
+    checks,
+    expectations,
+    grade_probes,
+    metrics,
+    probe_status,
+)
 from evals.deterministic.test_compaction import app_at
 
 
@@ -102,7 +109,21 @@ def test_empty_store_recall_and_zero_denominators_are_distinct(tmp_path, monkeyp
 
 def test_bounded_snapshot_cannot_silently_drop_facts():
     capture = ProbeCapture(load_cases()[0])
-    app = SimpleNamespace(memory=SimpleNamespace(facts=SimpleNamespace(list=lambda limit: [{}] * limit)))
+    app = SimpleNamespace(conn=SimpleNamespace(execute=lambda sql: []),
+                          memory=SimpleNamespace(facts=SimpleNamespace(list=lambda limit: [{}] * limit)))
     capture.finish(app, [])
     assert capture.memory is None and capture.errors
+    assert probe_status(capture.report()) == "incomplete"
+
+
+def test_missing_completion_event_is_detected_from_published_rows(tmp_path):
+    from evals.deterministic.test_compaction import seed
+
+    app = app_at(tmp_path)
+    seed(app)
+    app.compact()  # Deliberately omit the evaluation observer.
+    capture = ProbeCapture(load_cases()[0])
+    capture.finish(app, [])
+    app.conn.close()
+    assert len(capture.persisted) == 1 and capture.events == []
     assert probe_status(capture.report()) == "incomplete"

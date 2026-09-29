@@ -6,7 +6,6 @@ independent review; scripted graders only test this contract.
 """
 
 import json
-import math
 import random
 import statistics
 import uuid
@@ -61,7 +60,7 @@ def grade(client, model, item):
     return validate("".join(b.text for b in response.content if b.type == "text"))
 
 
-def calibrate(client, model, examples, reviewed=False):
+def calibrate(client, model, examples, reviewed=False, required_kinds=None):
     if not reviewed or not examples:
         return {"status": "incomplete", "agreement": None, "reason": "Independent calibration-label review is missing"}
     label_keys = {"task_success", "stale_assertion", "unsupported_assertion"}
@@ -69,15 +68,22 @@ def calibrate(client, model, examples, reviewed=False):
             or any(set(e.get("expected", {})) != label_keys
                    or any(type(v) is not bool for v in e["expected"].values()) for e in examples)):
         return {"status": "failed", "agreement": None, "reason": "Calibration labels must be complete unique boolean cases"}
+    if required_kinds and not required_kinds <= {e.get("kind", "answer") for e in examples}:
+        return {"status": "incomplete", "agreement": None, "reason": "Reviewed labels do not cover every required probe kind"}
+    if required_kinds and any({e["expected"]["task_success"] for e in examples if e.get("kind", "answer") == kind} != {True, False}
+                              for kind in required_kinds):
+        return {"status": "incomplete", "agreement": None, "reason": "Each probe kind needs successful and failed calibration cases"}
     blinded, mapping = blind(examples, 20260929)
     expected = {e["id"]: e["expected"] for e in examples}
+    kinds = {e["id"]: e.get("kind", "answer") for e in examples}
     results = []
     for item in blinded:
         try:
             verdict = grade(client, model, item)
             labels = expected[mapping[item["id"]]]
             passed = all(verdict[k] == v for k, v in labels.items())
-            results.append({"id": item["id"], "passed": passed, "verdict": verdict})
+            results.append({"id": item["id"], "passed": passed, "verdict": verdict,
+                            "expected": labels, "kind": kinds[mapping[item["id"]]]})
         except Exception as exc:
             results.append({"id": item["id"], "passed": False, "error_type": type(exc).__name__})
     agreement = sum(r["passed"] for r in results) / len(results)
@@ -91,65 +97,25 @@ def calibrate(client, model, examples, reviewed=False):
 
 
 def frozen_coverage(report, *, all_cases=True):
-    from evals.context.fixtures import load_cases
+    from evals.context.acceptance import validate_rows
 
-    cases = load_cases()
-    trials = 5 if all_cases else report.get("trials", 0)
-    if type(trials) is not int or not 1 <= trials <= 5:
-        return False
-    wanted = {c["id"] for c in cases if all_cases or c["split"] == "reserved"}
-    expected = {(key, f"V5-{a}", t) for key in wanted for a in "ABCD" for t in range(1, trials + 1)}
-    rows = report.get("cases", [])
-    seen = [(r.get("id"), r.get("configuration"), r.get("trial")) for r in rows]
-    relevant = {key for key in seen if key[0] in wanted}
-    return len(seen) == len(set(seen)) and relevant == expected and all(
-        r.get("status") == "complete" and r.get("verdict") is not None for r in rows)
+    return validate_rows(report, all_cases=all_cases) is not None
 
 
 def second_provider_status(report, primary):
-    from evals.context.experiment import manifest
-    from evals.context.measurement import digest
+    from evals.context.acceptance import secondary
 
-    complete = bool(report and report.get("runner") == "live" and report.get("provider")
-        and report["provider"] != primary and report.get("status") == "complete"
-        and report.get("source_stable") is True and report.get("manifest_sha256") == digest(manifest())
-        and report.get("calibration", {}).get("status") == "complete" and frozen_coverage(report, all_cases=False)
-        and all(not r.get("error_type") and r.get("action_check") is True
-                and not any((r.get("verdict") or {}).get(k) for k in ("stale_assertion", "unsupported_assertion"))
-                for r in report.get("cases", [])))
-    return {"status": "complete" if complete else "incomplete",
-            "provider": report.get("provider") if report else None,
-            "report_sha256": digest(report) if report else None}
+    return secondary(report, primary)
 
 
 def promotion(report):
     """Incomplete or synthetic evidence cannot promote a default configuration."""
-    if report.get("status") == "failed":
-        return "failed"
-    summary = report.get("summary", {})
-    if any(summary.get("arms", {}).get(a, {}).get("critical_failures") for a in ("C", "D")):
-        return "failed"
-    from evals.context.experiment import manifest
-    from evals.context.measurement import digest
+    from evals.context.acceptance import promote
 
-    required = (report.get("status") == "complete", report.get("source_stable") is True,
-                report.get("manifest_sha256") == digest(manifest()), frozen_coverage(report),
-                report.get("runner") == "live", report.get("quality_status") == "complete",
-                summary.get("coverage_complete") is True, report.get("trials", 0) >= 5,
-                report.get("calibration", {}).get("status") == "complete",
-                report.get("second_provider", {}).get("status") == "complete")
-    if not all(required):
+    try:
+        return promote(report)
+    except (KeyError, TypeError, ValueError, AttributeError):
         return "incomplete"
-    # These values must come from the blinded live comparison, not input probes.
-    m = report.get("quality_metrics", {})
-    needed = ("long_task_gain_lower_95", "baseline_long_success", "runtime_reduction_lower_95",
-              "short_task_change_lower_95", "short_latency_ratio_upper_95", "critical_failures")
-    if any(type(m.get(k)) not in (int, float) or not math.isfinite(m[k]) for k in needed):
-        return "incomplete"
-    if m["critical_failures"] or m["short_task_change_lower_95"] < -.03 or m["short_latency_ratio_upper_95"] > 1.10:
-        return "failed"
-    benefit = m["long_task_gain_lower_95"] >= .10 or (m["baseline_long_success"] >= .90 and m["runtime_reduction_lower_95"] >= .20)
-    return "complete" if benefit else "inconclusive"
 
 
 def aggregate(results, expected):
@@ -160,17 +126,22 @@ def aggregate(results, expected):
     for arm in "ABCD":
         rows = [r for r in results if r["configuration"] == f"V5-{arm}"]
         durations = sorted(t for r in rows for t in r["turn_seconds"])
+        usage_totals = {}
+        for key in ("input_tokens", "output_tokens", "cost_usd"):
+            values = [r["usage"]["runtime"].get(key) for r in rows]
+            usage_totals[key] = sum(values) if values and all(v is not None for v in values) else None
         summary["arms"][arm] = {"runs": len(rows), "complete": sum(r["status"] == "complete" for r in rows),
             "turns": len(durations), "turn_median_seconds": statistics.median(durations) if durations else None,
             "turn_p95_seconds": durations[min(len(durations) - 1, int(len(durations) * .95))] if durations else None,
             "model_calls": sum(r["usage"]["runtime"].get("calls", 0) for r in rows),
+            **usage_totals,
             "task_success_rate": statistics.mean(r["task_success"] for r in rows)
                 if rows and all(r.get("task_success") is not None for r in rows) else None,
             "stale_assertions": sum(bool((r.get("verdict") or {}).get("stale_assertion")) for r in rows),
             "unsupported_assertions": sum(bool((r.get("verdict") or {}).get("unsupported_assertion")) for r in rows),
             "critical_failures": [f'{r["id"]}/{r["trial"]}' for r in rows
                 if r["family"] in ("corrections", "forgetting", "isolation", "tools") and (
-                    not r.get("action_check") or any((r.get("verdict") or {}).get(k)
+                    r.get("task_success") is False or not r.get("action_check") or any((r.get("verdict") or {}).get(k)
                         for k in ("stale_assertion", "unsupported_assertion")))]}
     long_rows = [r for r in results if r["turns"] > 8]
     short_rows = [r for r in results if r["turns"] == 8]
@@ -192,8 +163,8 @@ def aggregate(results, expected):
         succeeded = a.get("task_success") is True and d.get("task_success") is True
         total_a = sum(av[k] for k in ("input_tokens", "output_tokens")) if succeeded and av.get("usage_complete") else None
         total_d = sum(dv[k] for k in ("input_tokens", "output_tokens")) if succeeded and dv.get("usage_complete") else None
-        latency_a = statistics.median(a["turn_seconds"]) if a["turn_seconds"] else None
-        latency_d = statistics.median(d["turn_seconds"]) if d["turn_seconds"] else None
+        latency_a = statistics.median(a["turn_seconds"]) if len(a["turn_seconds"]) == a["turns"] else None
+        latency_d = statistics.median(d["turn_seconds"]) if len(d["turn_seconds"]) == d["turns"] else None
         for name, value in (("tokens", 1 - total_d / total_a if total_a and total_d is not None else None),
                             ("latency", latency_d / latency_a if latency_a and latency_d is not None else None)):
             if (name == "tokens" and a["turns"] <= 8) or (name == "latency" and a["turns"] != 8):

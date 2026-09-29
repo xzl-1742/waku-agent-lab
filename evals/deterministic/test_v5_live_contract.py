@@ -52,11 +52,14 @@ def test_live_aggregation_does_not_replace_unknown_tokens_with_estimates():
     assert result["quality_metrics"]["runtime_reduction_lower_95"] is None
 
 
-def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_path, monkeypatch):
+@pytest.mark.parametrize("mode", ["complete", "allowance", "startup", "stale_memory", "action"])
+def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_path, monkeypatch, mode):
     import dotenv
     import dotenv.main
 
     from evals.context import live, quality
+    from evals.helpers import tool_block
+    from waku.app import Waku
     from waku.loop import models
 
     # Restore discovery hooks after testing the live-entry bootstrap.
@@ -66,21 +69,53 @@ def test_explicit_live_entry_runs_only_synthetic_local_tools_when_injected(tmp_p
     monkeypatch.setenv("ANTHROPIC_API_KEY", "synthetic-offline-placeholder")
     case = {"id": "synthetic", "family": "constraints", "split": "development", "turns": 8,
             "position": 0, "output_kib": 1, "subject": "project", "old": "limit 10", "current": "limit 10", "question": "What limit?"}
+    if mode == "stale_memory":
+        case.update(family="corrections", current="limit 20")
+    elif mode == "action":
+        case.update(family="tools", old="local-generated-receipt")
     monkeypatch.setattr(live, "load_cases", lambda: [case])
     monkeypatch.setattr(live, "manifest", lambda: {"experiment": "context-memory-v5", "seed": 1, "capacity": 32768,
         "arms": {"A": {"context_policy": "window", "memory_policy": "legacy", "retrieval_policy": "legacy"}}})
     monkeypatch.setattr(live, "expand", lambda case: [{"op": "turn", "message": "What limit?"}])
     monkeypatch.setattr(quality, "calibrate", lambda *a, **k: {"status": "complete", "agreement": 1})
-    monkeypatch.setattr(quality, "grade", lambda *a, **k: {"task_success": True, "stale_assertion": False, "unsupported_assertion": False})
-    monkeypatch.setattr(models, "get_client", lambda settings: ScriptedClient([
-        response([text_block('{"retrieve":false,"query":"","reason":"general"}')]), response([text_block("limit 10")])]))
+    def grade(client, model, item):
+        bad = mode == "stale_memory" and "stored fact:" in item["task"]
+        return {"task_success": not bad, "stale_assertion": bad, "unsupported_assertion": False, "reason": "Offline test"}
+    monkeypatch.setattr(quality, "grade", grade)
+    def get_client(settings):
+        script = [response([text_block('{"retrieve":false,"query":"","reason":"general"}')])]
+        if mode == "action":
+            script.append(response([tool_block("record_action", {})]))
+        script.append(response([text_block("limit 10")]))
+        return ScriptedClient(script)
+    monkeypatch.setattr(models, "get_client", get_client)
+    if mode in ("startup", "stale_memory"):
+        original = Waku.__init__
+        def initialize(self, *a, **k):
+            if mode == "startup":
+                raise RuntimeError("Synthetic startup failure")
+            original(self, *a, **k)
+            self.memory.facts.add("project", "limit 10", source="consolidation")
+        monkeypatch.setattr(Waku, "__init__", initialize)
     labels = tmp_path / "calibration.json"
     labels.write_text(json.dumps({"reviewed": True, "reviewer": "synthetic test", "cases": [{"id": "test"}]}))
     result = execute(SimpleNamespace(live=True, provider="anthropic", model="scripted-main", small_model="scripted-small",
-        judge_model="scripted-judge", calibration=labels, output=tmp_path / "result", split="development", trials=1, max_calls=10))
-    assert result["actual_runs"] == 1 and result["status"] == "complete"
-    assert result["cases"][0]["replies"][0]["reply"] == "limit 10"
-    assert result["usage"]["runtime"]["calls"] == 2
+        judge_model="scripted-judge", calibration=labels, output=tmp_path / "result", split="development", trials=1,
+        max_calls=2 if mode == "allowance" else 10))
+    assert result["actual_runs"] == 1
+    row = result["cases"][0]
+    assert json.loads((tmp_path / "result" / "report.json").read_text())["status"] == result["status"]
+    if mode in ("allowance", "startup"):
+        assert result["status"] == result["quality_status"] == "incomplete"
+        assert row["error_type"] and row["task_success"] is None
+    else:
+        assert result["status"] == "complete" and row["replies"][0]["reply"] == "limit 10"
+        assert result["usage"]["runtime"]["calls"] == (3 if mode == "action" else 2)
+        if mode == "stale_memory":
+            assert row["verdict"]["task_success"] and row["task_success"] is False
+            assert row["probe_metrics"]["consolidated_fact_supportedness"]["rate"] == 0
+        elif mode == "action":
+            assert row["actual_actions"] == ["local-generated-receipt"] and row["action_check"]
     assert result["promotion_status"] == "incomplete"
 
 

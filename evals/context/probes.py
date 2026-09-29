@@ -58,6 +58,7 @@ class ProbeCapture:
         self.events, self.checkpoints, self.errors = [], [], []
         self.memory = None
         self.inputs = []
+        self.persisted = None
 
     def user_message(self, session, text):
         self.inputs.append({"source_id": len(self.inputs) + 1, "session_id": session, "text": text})
@@ -85,6 +86,8 @@ class ProbeCapture:
 
     def finish(self, app, actions):
         try:
+            self.persisted = [dict(r) for r in app.conn.execute(
+                "SELECT session_id,revision,covered_through FROM session_checkpoints ORDER BY rowid")]
             facts = app.memory.facts.list(limit=MEMORY_LIMIT + 1)
             if len(facts) > MEMORY_LIMIT:
                 raise ValueError("Final memory snapshot exceeds the evaluation bound")
@@ -99,7 +102,7 @@ class ProbeCapture:
 
     def report(self):
         return {"schema_version": 1, "events": self.events, "checkpoints": self.checkpoints,
-                "memory": self.memory, "capture_errors": self.errors, "checks": []}
+                "persisted": self.persisted, "memory": self.memory, "capture_errors": self.errors, "checks": []}
 
 
 def checks(probes):
@@ -143,7 +146,7 @@ def grade_probes(probes, client, model):
     return probes
 
 
-def probe_status(probes):
+def probe_status(probes, case=None):
     from evals.context.quality import validate
 
     try:
@@ -151,8 +154,22 @@ def probe_status(probes):
             return "incomplete"
         identities = [tuple(r[k] for k in ("session_id", "revision", "covered_through")) for r in probes["events"]]
         captured = [tuple(r[k] for k in ("session_id", "revision", "covered_through")) for r in probes["checkpoints"]]
-        if identities != captured or len(identities) != len(set(identities)):
+        persisted = [tuple(r[k] for k in ("session_id", "revision", "covered_through")) for r in probes["persisted"]]
+        if identities != captured or identities != persisted or len(identities) != len(set(identities)):
             return "incomplete"
+        if case is not None:
+            session, observed = "primary-project", []
+            for step in expand(case):
+                if step["op"] in ("restart", "switch"):
+                    session = step["session"]
+                else:
+                    observed.append((session, step["message"]))
+            if [(m["session_id"], m["text"]) for m in probes["memory"]["evidence"]] != observed:
+                return "incomplete"
+            for item, memory in [(p, False) for p in probes["checkpoints"]] + [(probes["memory"], True)]:
+                wanted = expectations(case, item["evidence"], memory=memory)
+                if any(item[k] != wanted[k] for k in ("required", "forbidden")):
+                    return "incomplete"
         expected = [(key, kind, source) for key, kind, _, _, source in checks(probes)]
         actual = [(r["id"], r["kind"], r["source"]) for r in probes["checks"]]
         if expected != actual or any(r.get("error_type") for r in probes["checks"]):

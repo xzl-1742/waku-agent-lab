@@ -60,7 +60,7 @@ cost remain unmeasured. The default retrieval policy remains `legacy`; see
 **V5 adds combined evaluation and attributed usage.** All 720 scripted runs
 complete across four policies and five repetitions. Ops and Memory show context,
 checkpoints, evidence IDs and runtime/judge coverage. Explicit live execution,
-calibration and release checks are implemented; live acceptance remains incomplete.
+calibration and intermediate-state checks are implemented; live acceptance is incomplete.
 D reduces estimated input 24.8% versus A but increases local latency. No real
 quality or cost improvement is established; defaults stay unchanged. See
 [the V5 report](v5-baseline.md), including the full-run provenance limitation.
