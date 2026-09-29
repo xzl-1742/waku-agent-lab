@@ -286,6 +286,41 @@ The first enhanced lifecycle implementation targets SQLite. Existing remote back
 
 V4 improves which memories reach the model and when they are loaded.
 
+### V4 implementation decisions
+
+`WAKU_RETRIEVAL_POLICY=selective` opts into a separate SQLite retrieval policy;
+`legacy` remains the default for the existing comparisons and remote adapters.
+Selective retrieval rejects unsupported remote stores explicitly. The lifecycle
+and context policies remain independent, with lifecycle recommended for V3
+correction and forgetting guarantees.
+
+The gate receives the current message plus bounded eligible dialogue and a
+valid checkpoint hint. It accepts only an exact decision schema. Invalid output
+or an ordinary API failure triggers one bounded lexical fallback; terminal
+budget and suppression failures propagate. Trace events distinguish deliberate
+skips, malformed decisions, API failures, search failures and tool recovery.
+
+Local matching uses a separate Unicode search normalization, whole words and Han
+bigrams. Scope and validity filter before ranking. Relevance precedes source
+priority and freshness; ranking is an ordering rule, not a probability. The
+initial implementation scans eligible SQLite rows with a bounded top-k heap.
+Query length, match terms and returned material are bounded; database scan time
+still grows with the store. No derived index or embedding dependency is added.
+
+Initial evidence and tool searches return ID-bearing snippets under a serialized
+token estimate budget. `manage_memory` gains opt-in `read` and `recent` actions;
+detail pages recheck the whole record before slicing. A turn permits two tool
+searches/recent requests and three detail pages. Empty keyword queries return
+no matches; only an explicit episode-recency request selects recent events.
+
+A separate frozen development/reserved fixture compares retrieval availability
+under `V4-retrieval-control` and `V4-retrieval-candidate`. Gate replies are scripted;
+context and parsing tests verify wiring, not learned pronoun interpretation.
+The report separates search recall, delivered recall, recovery, evidence share
+and stale/unsupported evidence from unmeasured answer assertions and model cost.
+Paraphrase misses remain visible; hybrid retrieval stays a separately evaluated
+optional experiment rather than a dependency added to make a synthetic score pass.
+
 ### Changes
 
 1. Give the gate the current message, a bounded recent-dialogue excerpt and a bounded checkpoint/entity hint. Apply the same summarizer/gate input accounting used for main calls.

@@ -1,0 +1,858 @@
+{
+  "schema_version": 1,
+  "k": 4,
+  "budget_tokens": 1024,
+  "cases": [
+    {
+      "id": "pronoun-1",
+      "category": "pronouns",
+      "split": "development",
+      "message": "What time are we meeting him?",
+      "query": "Alex meeting",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [
+        {
+          "role": "user",
+          "content": "We discussed Alex yesterday."
+        }
+      ],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "Alex",
+          "content": "Alex meets us Tuesday at 10.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "pronoun-2",
+      "category": "pronouns",
+      "split": "development",
+      "message": "他定的是哪天？",
+      "query": "小林 部署",
+      "requires_memory": true,
+      "gate_retrieve": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "接着说小林的部署安排。"
+        }
+      ],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "部署记录",
+          "content": "昨天与小林确认部署安排在周五。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": "小林 部署"
+    },
+    {
+      "id": "pronoun-3",
+      "category": "pronouns",
+      "split": "reserved",
+      "message": "When does she review it?",
+      "query": "María review",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "Current task: coordinate María's release review.",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "María",
+          "content": "María reviews the release on Monday.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "cjk-1",
+      "category": "cjk",
+      "split": "development",
+      "message": "张伟",
+      "query": "张伟",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "会议记录",
+          "content": "昨天和张伟讨论了部署，约定周二交付。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "cjk-2",
+      "category": "cjk",
+      "split": "development",
+      "message": "王敏",
+      "query": "王敏",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "讨论",
+          "content": "我们请王敏负责验收。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "其他",
+          "content": "王强负责发布。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "cjk-3",
+      "category": "cjk",
+      "split": "reserved",
+      "message": "李晴",
+      "query": "李晴",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "会议",
+          "content": "今天与李晴约定周四完成审查。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "其他",
+          "content": "李明周四出差。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "para-1",
+      "category": "paraphrases",
+      "split": "development",
+      "message": "bicycle commute",
+      "query": "bicycle commute",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "travel",
+          "content": "I cycle to the office.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "para-2",
+      "category": "paraphrases",
+      "split": "development",
+      "message": "午餐",
+      "query": "午餐",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "饮食",
+          "content": "中午通常吃素食。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "para-3",
+      "category": "paraphrases",
+      "split": "reserved",
+      "message": "automobile parking",
+      "query": "automobile parking",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "travel",
+          "content": "My car stays in the garage.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "common-1",
+      "category": "common",
+      "split": "development",
+      "message": "the and about please",
+      "query": "the and about please",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "misc",
+          "content": "The release and the plan are about work.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "common-2",
+      "category": "common",
+      "split": "development",
+      "message": "请问 什么",
+      "query": "请问 什么",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "杂记",
+          "content": "请问明天做什么，是一般寒暄。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "common-3",
+      "category": "common",
+      "split": "reserved",
+      "message": "where is my the",
+      "query": "where is my the",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "misc",
+          "content": "The report is where my notes are.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "conflict-1",
+      "category": "contradictions",
+      "split": "development",
+      "message": "atlas port",
+      "query": "atlas port",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "atlas",
+          "content": "Atlas port is 3000.",
+          "kind": "fact",
+          "source": "consolidation",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "atlas",
+          "content": "Atlas port is 4000.",
+          "kind": "fact",
+          "source": "correction",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1",
+        "m2"
+      ],
+      "forbidden": [],
+      "recovery_query": "",
+      "order": [
+        "m2",
+        "m1"
+      ]
+    },
+    {
+      "id": "conflict-2",
+      "category": "contradictions",
+      "split": "development",
+      "message": "项目 预算",
+      "query": "项目 预算",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "项目",
+          "content": "项目预算为50。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "项目",
+          "content": "项目预算为80。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1",
+        "m2"
+      ],
+      "forbidden": [],
+      "recovery_query": ""
+    },
+    {
+      "id": "conflict-3",
+      "category": "contradictions",
+      "split": "reserved",
+      "message": "Orion deadline",
+      "query": "Orion deadline",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "Orion",
+          "content": "Orion deadline is Friday.",
+          "kind": "fact",
+          "source": "consolidation",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "Orion",
+          "content": "Orion deadline is Monday.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1",
+        "m2"
+      ],
+      "forbidden": [],
+      "recovery_query": "",
+      "order": [
+        "m2",
+        "m1"
+      ]
+    },
+    {
+      "id": "scope-1",
+      "category": "scope",
+      "split": "development",
+      "message": "deployment",
+      "query": "deployment",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "deployment",
+          "content": "Alpha deployment uses port 4000.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "project",
+          "scope_id": "alpha",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "deployment",
+          "content": "Beta deployment uses port 9000.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "project",
+          "scope_id": "beta",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [
+        "m2"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "scope-2",
+      "category": "scope",
+      "split": "development",
+      "message": "plan",
+      "query": "plan",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "plan",
+          "content": "This session plan.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "session",
+          "scope_id": "main",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "plan",
+          "content": "Other session plan.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "session",
+          "scope_id": "other",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [
+        "m2"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "scope-3",
+      "category": "scope",
+      "split": "reserved",
+      "message": "审查",
+      "query": "审查",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "审查",
+          "content": "本项目审查安排。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "project",
+          "scope_id": "alpha",
+          "validity": "active"
+        },
+        {
+          "key": "m2",
+          "subject": "审查",
+          "content": "别的项目审查安排。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "project",
+          "scope_id": "gamma",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m1"
+      ],
+      "forbidden": [
+        "m2"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "stale-1",
+      "category": "stale",
+      "split": "development",
+      "message": "atlas port",
+      "query": "atlas port",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "atlas",
+          "content": "Atlas port was 3000.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "superseded"
+        },
+        {
+          "key": "m2",
+          "subject": "atlas",
+          "content": "Atlas port is 4000.",
+          "kind": "fact",
+          "source": "correction",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m2"
+      ],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "stale-2",
+      "category": "stale",
+      "split": "development",
+      "message": "张伟",
+      "query": "张伟",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "张伟",
+          "content": "张伟的旧地址已遗忘。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "suppressed"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "stale-3",
+      "category": "stale",
+      "split": "reserved",
+      "message": "Sam preference",
+      "query": "Sam preference",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "Sam",
+          "content": "Sam prefers coffee.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "suppressed"
+        },
+        {
+          "key": "m2",
+          "subject": "Sam",
+          "content": "Sam prefers tea.",
+          "kind": "fact",
+          "source": "correction",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [
+        "m2"
+      ],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "unknown-1",
+      "category": "unknown",
+      "split": "development",
+      "message": "Zelda",
+      "query": "Zelda",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "Alex",
+          "content": "Alex likes tea.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "unknown-2",
+      "category": "unknown",
+      "split": "development",
+      "message": "car",
+      "query": "car",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "home",
+          "content": "We bought a carpet.",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    },
+    {
+      "id": "unknown-3",
+      "category": "unknown",
+      "split": "reserved",
+      "message": "周岚",
+      "query": "周岚",
+      "requires_memory": true,
+      "gate_retrieve": true,
+      "history": [],
+      "checkpoint": "",
+      "project_id": "alpha",
+      "session_id": "main",
+      "rows": [
+        {
+          "key": "m1",
+          "subject": "人事",
+          "content": "周宁负责审批。",
+          "kind": "fact",
+          "source": "user",
+          "scope": "global",
+          "scope_id": "",
+          "validity": "active"
+        }
+      ],
+      "gold": [],
+      "forbidden": [
+        "m1"
+      ],
+      "recovery_query": ""
+    }
+  ]
+}
