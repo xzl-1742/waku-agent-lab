@@ -6,7 +6,7 @@
 Read this before opening a PR or filing an issue: most of what is already
 known-broken is below, and half of it already has a fix in flight.
 
-**Last updated:** 2026-09-28
+**Last updated:** 2026-09-29
 
 ---
 
@@ -17,7 +17,7 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**1065 checks pass in the isolated offline suite**, with no API key; 63 checks
+**1111 checks pass in the isolated offline suite**, with no API key; 63 checks
 skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
@@ -42,6 +42,17 @@ the existing CLI, dashboard and Telegram command paths. The deterministic B2
 scenarios exercise source retention and request limits; real-model retention
 quality and cost remain unmeasured. `budget` remains the default while V2 is
 being evaluated. See [the V2 report](v2-baseline.md).
+
+**V3 adds opt-in SQLite memory lifecycle.** `WAKU_MEMORY_POLICY=lifecycle`
+enables scoped exact deduplication, correction versions, bounded extraction
+and durable suppression. A correction or deletion conservatively invalidates
+earlier context and derived memories while preserving original archives and
+execution receipts. The dashboard and agent tools use the selected store and
+preserve opaque IDs. Both frozen V3 configurations complete all 36 scenarios;
+obsolete values are absent from the final inputs in every correction and
+forgetting case. Real-model quality remains unmeasured, and the default memory
+policy remains `legacy`. See [the V3 report](v3-baseline.md) for the context-loss
+tradeoff, configuration and limits.
 
 **0.1.8 is on PyPI and on GitHub Releases.** Pushing a `v*` tag publishes to
 both, so the repo's "Latest" release always matches `pip install waku-agent`.

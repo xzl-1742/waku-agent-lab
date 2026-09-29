@@ -103,8 +103,10 @@ apply to their configured model IDs, and a shared ID takes the smaller capacity.
 `WAKU_CONTEXT_SAFETY` defaults to 1,024. `WAKU_TOOL_OUTPUT_BYTES` defaults to 4,096
 and must be at least 1,024. The fallback is a local policy, not a verified model limit.
 
-An oversized required request stops with a clear error. The existing memory
-consolidator leaves an oversized backlog unprocessed; bounded batches belong to V3.
+An oversized required request stops with a clear error. The legacy memory
+consolidator leaves an oversized backlog unprocessed. The optional
+[V3 lifecycle](v3-baseline.md) selects bounded session batches and preserves
+suppression across retrieval, checkpoint reuse and restart.
 Canonical records and full result files add disk usage. V1 does not delete runtime
 data, summarize old conversation or claim that forgotten information is absent
 from old transcripts. The V0 quality limitations still apply.

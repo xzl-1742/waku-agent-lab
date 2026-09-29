@@ -82,11 +82,15 @@ flowchart LR
 ### MEMORY.md vs state.db
 
 Some assistants (e.g. Hermes) keep long-term memory as a single `MEMORY.md`
-markdown file. Waku keeps the *queryable* source in `state.db` (the `facts` and
+markdown file. By default, Waku keeps the *queryable* source in `state.db` (the `facts` and
 `episodes` tables, keyword-searchable via FTS5) **and** regenerates a readable
 `.waku/MEMORY.md` mirror after every turn — so you get both: a real file you
 can open, backed by a sturdy database. The dashboard's **Memory** tab is the
 friendly view; the **Data** tab shows the raw `state.db` tables.
+
+When a remote adapter is selected, that store is authoritative for its memories.
+The readable mirror and Memory tab use the selected stores, rather than showing
+unrelated local fact rows.
 
 ## Which file is which
 
@@ -127,8 +131,8 @@ friendly view; the **Data** tab shows the raw `state.db` tables.
 - **The gate before retrieval** (not retrieval on every turn): a cheap-model judge
   answers "does this message need the user's memory?" — saves latency and, more
   importantly, keeps irrelevant memories from biasing answers.
-- **Consolidation is batched** ("after N chats"), asynchronous to the reply path,
-  and loss-safe: if the summarizer fails, the chat log stays unconsolidated.
+- **Consolidation is batched** ("after N chats") and runs after the loop produces
+  a reply, before the turn returns. If extraction fails, its sources stay pending.
 - **Deterministic evals and judge evals never mix.** One is a unit test, the other
   is a scored opinion. The release gate requires 100% of the first and a threshold
   on the second.
@@ -200,6 +204,14 @@ budget; V2 stops explicitly instead of repeating actions or discarding records.
 not add a conversation turn. The dashboard and gateway worker keep their
 existing serialization. Compaction events record starts, calls, completions and
 failures; missing provider usage stays unmeasured.
+
+## Memory lifecycle (V3)
+
+The opt-in V3 memory lifecycle is described in [v3-baseline.md](v3-baseline.md).
+It links explicit corrections, deduplicates exact values, publishes bounded
+SQLite extraction batches atomically and excludes invalid sources from model
+context. Suppression invalidates earlier checkpoints while preserving archives
+and execution receipts. The default remains the legacy write policy.
 
 ## What this deliberately is not
 
