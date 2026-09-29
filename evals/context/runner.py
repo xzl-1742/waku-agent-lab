@@ -18,6 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from evals.context.experiment import policies
 from evals.context.fixtures import expand, load_cases
 from evals.context.measurement import RecordingClient, digest, metadata, record_tools, request_stage
 
@@ -56,9 +57,11 @@ class ScenarioClient:
         stage = request_stage(kwargs)
         if stage == "answer":
             return self.pending.pop(0)
-        if stage == "gate":
+        if stage in ("gate", "selective_gate"):
             query = self.turn["query"]
             text = json.dumps({"retrieve": bool(query), "query": query, "reason": "fixture"})
+            if stage == "selective_gate":
+                text = json.dumps({**json.loads(text), "mode": "search"})
         elif stage == "consolidation":
             text = '{"facts": [], "episode": ""}'
         elif stage == "lifecycle_consolidation":
@@ -80,9 +83,7 @@ def build_app(home, client, tool_calls, output_kib, configuration="A", capacity=
                     small_model="scripted-small", history_turns=12, consolidate_every=6,
                     retrieval_top_k=4, max_iterations=10, max_tokens=8192,
                     semantic_store="sqlite", episodic_store="sqlite",
-                    context_policy={"A": "window", "B": "budget", "B2": "compact",
-                                    "V3-window": "window", "V3-compact": "compact"}[configuration],
-                    memory_policy="lifecycle" if configuration.startswith("V3-") else "legacy",
+                    **policies(configuration),
                     context_window_tokens=capacity, small_context_window_tokens=capacity,
                     experimental=False, gh_tool=False)
     app.conn.execute("CREATE TABLE IF NOT EXISTS eval_actions (receipt TEXT NOT NULL)")
@@ -108,7 +109,7 @@ def run_case(case, home, configuration="A", capacity=32768):
         Path(os.environ["WAKU_EVAL_ROOT"]).resolve()
     ):
         raise RuntimeError("Run context baselines through the offline isolation bootstrap")
-    if configuration not in ("A", "B", "B2", "V3-window", "V3-compact"):
+    if configuration not in ("A", "B", "B2", "V3-window", "V3-compact", "V5-A", "V5-B", "V5-C", "V5-D"):
         raise ValueError("Unknown implemented configuration")
     script = ScenarioClient()
     client = RecordingClient(script, synthetic=True)
@@ -118,9 +119,10 @@ def run_case(case, home, configuration="A", capacity=32768):
     steps = expand(case)
     started = time.perf_counter()
     final_input, errors, context_events = "", [], []
+    replies = []
 
     def observe(kind, event):
-        if kind in ("context", "context_error") or kind.startswith("compaction_"):
+        if kind in ("context", "context_error", "gate", "retrieval", "retrieval_detail") or kind.startswith("compaction_"):
             context_events.append({"kind": kind, **event})
     try:
         with patch("datetime.datetime", FixedDatetime):
@@ -137,6 +139,8 @@ def run_case(case, home, configuration="A", capacity=32768):
                     turn_start = time.perf_counter()
                     generation = app.memory.lifecycle.generation
                     result = app.respond(step["message"], stream=False, source="eval", observer=observe)
+                    replies.append({"message": step["message"], "reply": result.reply,
+                                    "tools": result.tool_calls, "session_id": app.session.session_id})
                     if app.memory.lifecycle.generation > generation:
                         # Lifecycle mutations intentionally finish without the
                         # scripted model's final reply. Require the real receipt.
@@ -166,11 +170,11 @@ def run_case(case, home, configuration="A", capacity=32768):
             {"name": "session_transcript_isolation",
              "passed": "OTHER_SESSION_SENTINEL" not in final_input},
         ]
-        if configuration.startswith("V3-") and case["family"] in ("corrections", "forgetting"):
+        if policies(configuration)["memory_policy"] == "lifecycle" and case["family"] in ("corrections", "forgetting"):
             checks.append({"name": "suppressed_fact_absent", "passed": case["old"] not in final_input})
-        if configuration.startswith("V3-") and case["family"] == "corrections":
+        if policies(configuration)["memory_policy"] == "lifecycle" and case["family"] == "corrections":
             checks.append({"name": "corrected_fact_available", "passed": case["current"] in final_input})
-        if configuration in ("B", "B2", "V3-compact"):
+        if policies(configuration)["context_policy"] != "window":
             executions = app.conn.execute("SELECT * FROM tool_executions").fetchall()
             checks.extend([
                 {"name": "request_budgets", "passed": all(
@@ -188,6 +192,8 @@ def run_case(case, home, configuration="A", capacity=32768):
         app.close()
         app.conn.close()
     elapsed = time.perf_counter() - started
+    from waku.ops.usage import read_ledger, summarize
+
     return {
         "id": case["id"], "family": case["family"], "split": case["split"],
         "configuration": configuration,
@@ -203,6 +209,7 @@ def run_case(case, home, configuration="A", capacity=32768):
         "duration_seconds": elapsed, "turn_seconds": turn_seconds,
         "calls": client.calls, "tool_calls": tool_calls,
         "context_events": context_events,
+        "replies": replies, "usage": summarize(read_ledger(home)),
         "estimated_input_tokens_total": sum(c["estimated_input_tokens"] for c in client.calls),
         "estimated_input_tokens_peak": max((c["estimated_input_tokens"] for c in client.calls), default=0),
         "evidence_probes": {

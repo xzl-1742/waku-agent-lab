@@ -13,7 +13,7 @@
   "primary_pair": ["D", "A"],
   "secondary_pairs": [["B", "A"], ["C", "A"]],
   "capacity": 32768,
-  "critical_families": ["corrections", "forgetting", "sessions", "tools"],
+  "critical_families": ["corrections", "forgetting", "isolation", "tools"],
   "promotion": {
     "long_task_gain": 0.10,
     "alternative_runtime_reduction": 0.20,

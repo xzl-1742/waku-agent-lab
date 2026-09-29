@@ -81,7 +81,7 @@ def verdict(suites: dict) -> str:
     return "complete"
 
 
-def report(suites: dict, output: Path) -> dict:
+def report(suites: dict, output: Path, comparison=None) -> dict:
     """Keep legacy dashboard fields while recording explicit suite coverage."""
     legacy = {"complete": "pass", "failed": "fail", "skipped": "skipped"}
     record = {
@@ -90,6 +90,12 @@ def report(suites: dict, output: Path) -> dict:
            for name in ("deterministic", "judge")},
         "suites": suites, "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
+    if comparison is not None:
+        record["comparison"] = comparison
+        if comparison["status"] == "failed":
+            record["status"] = "failed"
+        elif comparison["status"] != "complete" and record["status"] != "failed":
+            record["status"] = "incomplete"
     output.mkdir(parents=True, exist_ok=True)
     (output / "eval_report.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
     with (output / "eval_runs.jsonl").open("a", encoding="utf-8") as handle:
@@ -102,6 +108,7 @@ def main(argv=None) -> int:
     parser.add_argument("--strict", action="store_true", help="Reject incomplete live coverage")
     parser.add_argument("--live", action="store_true", help="Allow credential loading and paid judges")
     parser.add_argument("--output", type=Path, default=Path("eval-results"))
+    parser.add_argument("--comparison", type=Path, help="Require a V5 combined-system comparison artifact")
     args = parser.parse_args(argv)
     suites = {"deterministic": run("deterministic")}
     suites["judge"] = skipped("live evaluation was not requested")
@@ -114,7 +121,17 @@ def main(argv=None) -> int:
         has_key = bool(settings.api_key or (provider and os.getenv(provider.key_env)))
         suites["judge"] = (run("judge") if has_key
                            else skipped(f"no credentials for {settings.provider}"))
-    record = report(suites, args.output)
+    comparison_result = None
+    if args.comparison:
+        from evals.context.quality import promotion
+
+        try:
+            comparison = json.loads(args.comparison.read_text(encoding="utf-8"))
+            result = promotion(comparison)
+        except (OSError, ValueError, TypeError):
+            result = "incomplete"
+        comparison_result = {"status": result, "path": str(args.comparison)}
+    record = report(suites, args.output, comparison_result)
     if record["status"] == "failed":
         print("GATE CLOSED: evaluation failed.")
         return 1
