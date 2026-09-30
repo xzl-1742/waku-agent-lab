@@ -354,8 +354,8 @@ runs captured that evidence. Earlier artifacts were preserved, not rewritten.
   check rejects it. A, C and D did not disclose that value in this long case.
 - D retained the corrected budget of 350 in its actual memory store but failed
   to retrieve it for the final question in both long attempts. Its later
-  checkpoint also omitted the current requirement. The next runtime fix should
-  trace retrieval decisions and evidence delivery after correction and compaction.
+  checkpoint also omitted the current requirement. The 2026-09-30 follow-up below
+  fixes a reproducible retrieval miss and records the live evidence delivery.
 - C's window-only configuration lost the earlier budget constraint in the long
   run. D's focused constraint run returned the correct limit and passed all
   three checkpoint checks. D's focused forgetting run kept memory empty,
@@ -391,6 +391,53 @@ validation and the generated environment-template check passed. Full live
 acceptance remains incomplete: corrected-fact recall, consolidation quality,
 judge review, reserved coverage and a second provider still need work. Defaults
 remain unchanged, and no 96-turn or full-matrix live acceptance claim is made.
+
+## Corrected-value retrieval repair, 2026-09-30
+
+D answered the final 32-turn correction question with **350 units** after the
+retrieval repair in `e67dab8`. This is one targeted live check, not full acceptance.
+The deterministic regression reproduced eight failures before the repair:
+revision-qualified searches, gate-error fallback, and delivery to the main
+request after compaction, with and without a restart.
+
+The lexical matcher previously counted `corrected budget` as two required terms.
+The active fact contained `budget` but not `corrected`, so its 0.5 coverage fell
+below the 0.6 threshold. Search now removes `corrected`, `updated` and `revised`
+when another substantive term remains. Qualifier-only queries still require a
+match. Scope, suppression, ranking thresholds and evidence budgets stay in force.
+The gate prompt also requests memory for previously saved or corrected values
+when recent context omits them. Earlier failed runs did not retain gate decisions,
+so the lexical reproduction does not establish their exact live decision path.
+
+The new live report records gate decisions and delivered IDs for each turn.
+On turn 32, the gate requested `budget`, the initial search delivered only fact
+2 with no omissions, and the answer cited that corrected fact. The delivered
+payload used 208 estimated tokens against the 1,024-token evidence allowance.
+The final answer and stored-fact checks passed; neither asserted 900 as current.
+
+Both intermediate checkpoints still omitted the corrected budget. Their checks
+failed, so the combined case result remains failed despite the correct final
+answer. Lifecycle correction deliberately excludes earlier transcript sources;
+the replacement remains in durable memory. Retaining that corrected requirement
+in checkpoints needs separate work. This repair does not change the checkpoint
+contract, relax its evaluator, or establish recall for other long conversations.
+
+The batch made 77 measured provider calls: 72 runtime calls and five judge calls.
+It used 87,276 input tokens, including 49,792 cache hits, and 1,802 output tokens.
+The official Flash prices were rechecked on 2026-09-30. At peak prices, the batch
+cost estimate is **CNY 0.09137568**. The existing CNY 5 campaign journal now records
+CNY 2.74576744 conservatively, with no unresolved reservations. Immediate balance
+observations both returned CNY 23.50; that observation is not an invoice.
+
+The ignored local report is `eval-results/flash-correction-fix-20260930/report.json`.
+Its SHA-256 is `19e8f482a103250568ae99d7b6c3f09b731162b8cf2668a36e3b276635dfdb75`.
+Source snapshots matched before and after execution. The report preserves failed
+checkpoint verdicts and leaves live acceptance incomplete. All stores and tool
+outputs were synthetic and disposable; the user's runtime was not modified.
+
+The full isolated suite passed 1,286 checks with 63 skips. Ruff, skill validation
+and the environment-template check passed. The strict release gate still reports
+incomplete live coverage; no promotion or default-policy change is justified.
 
 ## Policy rollback
 
