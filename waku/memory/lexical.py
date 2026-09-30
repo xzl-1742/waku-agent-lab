@@ -15,6 +15,7 @@ HAN = re.compile(r"[\u3400-\u9fff]+")
 WORDS = re.compile(r"[^\W_]+", re.UNICODE)
 STOP = {"the", "a", "an", "and", "or", "is", "are", "was", "were", "to", "of", "in", "on", "at", "my", "me", "i", "it", "its", "his", "her", "he", "she", "they", "their", "we", "our", "you", "your", "about", "what", "when", "where", "how", "please", "tell", "does", "do", "did", "can", "could", "would", "for", "with", "this", "that", "which", "remember", "know"}
 HAN_STOP = ("请问", "什么", "怎么", "如何", "告诉", "一下", "的", "了", "吗", "呢", "是", "我", "你", "他", "她", "们")
+REVISION_WORDS = {"corrected", "updated", "revised"}
 
 
 def normalize(text):
@@ -32,6 +33,11 @@ def terms(text):
             run = run.replace(stop, " ")
         han.extend(piece for piece in run.split() if len(piece) >= 2)
     words = [w for w in WORDS.findall(HAN.sub(" ", value)) if w not in STOP and len(w) >= 2]
+    # Revision qualifiers ask for the active value; they need not occur in the
+    # value itself. Keep a qualifier-only query searchable, never match all rows.
+    substantive = [w for w in words if w not in REVISION_WORDS]
+    if substantive or han:
+        words = substantive
     return list(dict.fromkeys(words))[:16], list(dict.fromkeys(han))[:16]
 
 

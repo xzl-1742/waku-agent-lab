@@ -123,6 +123,75 @@ def test_unicode_matching_inside_sentences(tmp_path, query, content):
     assert app.memory.retrieval.rows(query)[0]["id"] == record
 
 
+@pytest.mark.parametrize("query", ["corrected budget", "What is the corrected budget?", "updated budget", "revised budget"])
+def test_revision_queries_deliver_only_the_current_fact(tmp_path, query):
+    app = app_at(tmp_path, project_id="alpha")
+    old = app.memory.facts.add("budget", "Budget is 900 units")
+    assert app.memory.facts.update(old, "Budget is 350 units")
+    app.memory.lifecycle.add("budget", "Budget is 700 units", scope=("project", "beta"))
+    payload = app.memory.retrieval.search(query)
+    assert [r["text"] for r in payload["entries"]] == ["Budget is 350 units"]
+    assert payload["entries"][0]["source"] == "correction"
+    assert tokens(payload) <= app.settings.retrieval_tokens
+    app.memory.facts.delete(payload["entries"][0]["id"])
+    assert app.memory.retrieval.rows(query) == []
+
+
+@pytest.mark.parametrize("query", ["corrected", "updated", "revised"])
+def test_revision_words_alone_remain_searchable(tmp_path, query):
+    app = app_at(tmp_path)
+    record = app.memory.facts.add("status", f"The document was {query}.")
+    app.memory.facts.add("budget", "Budget is 350 units")
+    assert [r["id"] for r in app.memory.retrieval.rows(query)] == [record]
+
+
+@pytest.mark.parametrize("fault", ["invalid", "error"])
+def test_failed_gate_still_recalls_corrected_fact(tmp_path, fault):
+    app = app_at(tmp_path, [response([text_block("{}")])])
+    old = app.memory.facts.add("deadline", "Deadline is Monday")
+    app.memory.facts.update(old, "Deadline is Friday")
+    if fault == "error":
+        def fail(**kwargs):
+            raise OSError("synthetic outage")
+        app.memory.client.messages.create = fail
+    payload = json.loads(app.memory.gated_retrieve("What is the corrected deadline?"))
+    assert [r["text"] for r in payload["entries"]] == ["Deadline is Friday"]
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_corrected_fact_reaches_main_request_after_compaction(tmp_path, restart):
+    from evals.deterministic.test_compaction import SummaryClient
+
+    client = SummaryClient()
+    settings = {"retrieval_policy": "selective", "memory_policy": "lifecycle", "context_policy": "compact",
+                "consolidate_every": 10000, "retrieval_gate_tokens": 4096}
+    app = make_waku(tmp_path, client=client, **settings)
+    old = app.memory.facts.add("budget", "Budget is 900 units")
+    app.memory.facts.update(old, "Budget is 350 units")
+    for _ in range(27):
+        record = app.records.turn("default", "eval")
+        record.message("user", "What is 2 + 2?")
+        record.message("assistant", "4")
+    assert "checkpoint 1" in app.compact().reply
+    assert "350" not in app.checkpoints.latest("default")["summary_json"]
+    if restart:
+        app.conn.close()
+        app = make_waku(tmp_path, client=client, **settings)
+    original = client.messages.create
+
+    def respond(**request):
+        if "system" not in request:
+            return response([text_block(json.dumps(decision(query="corrected budget")))])
+        return original(**request)
+
+    client.messages.create = respond
+    app.respond("What is the corrected budget?")
+    # Inspect evidence sent to the model, not a scripted correct answer.
+    final = client.requests[-1]
+    assert "Budget is 350 units" in final["system"]
+    assert "900" not in json.dumps(final)
+
+
 @pytest.mark.parametrize("query", ["", "!!!", "the and what", "请问 什么", "car", "Zelda"])
 def test_empty_common_and_unknown_queries_do_not_return_recent_memory(tmp_path, query):
     app = app_at(tmp_path)

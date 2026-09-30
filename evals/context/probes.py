@@ -61,12 +61,19 @@ class ProbeCapture:
         self.inputs = []
         self.persisted = None
         self.executions = []
+        self.retrieval_events = []
 
     def user_message(self, session, text):
         self.inputs.append({"source_id": len(self.inputs) + 1, "session_id": session, "text": text})
 
     def observer(self, app):
         def observe(kind, event):
+            if kind in ("gate", "retrieval", "retrieval_detail"):
+                # Only synthetic live evaluations attach this observer. Copy
+                # decisions and delivered IDs before the next turn changes them.
+                self.retrieval_events.append({"turn": len(self.inputs), "session_id": app.session.session_id,
+                                              "kind": kind, "event": json.loads(json.dumps(event))})
+                return
             if kind == "tool":
                 try:
                     if event.get("result_id"):
@@ -119,6 +126,7 @@ class ProbeCapture:
 
     def report(self):
         return {"schema_version": 2, "events": self.events, "checkpoints": self.checkpoints,
+                "retrieval_events": self.retrieval_events,
                 "persisted": self.persisted, "memory": self.memory, "capture_errors": self.errors, "checks": []}
 
 

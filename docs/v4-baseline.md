@@ -50,6 +50,10 @@ search failure and recovery search.
 The local search normalizes Unicode separately from lifecycle identity hashes.
 It matches words, limited English plural/`ing` forms and Han substrings/bigrams.
 It removes common question words and rejects insufficient query coverage.
+When a query names a subject, it also removes `corrected`, `updated` and
+`revised`: the active value need not contain its revision qualifier. A query
+containing only these words still requires a literal match. The gate asks for
+stored values even when the recent dialogue or checkpoint no longer mentions them.
 Scope and active validity filter before ranking. Relevance ranks first, followed
 by source preference: explicit corrections, explicit saves, then consolidation.
 Freshness breaks ties within a store; the combined list uses a stable kind order.

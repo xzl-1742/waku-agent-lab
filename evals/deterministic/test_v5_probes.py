@@ -63,6 +63,25 @@ def test_observer_failure_is_incomplete_without_interrupting_runtime():
     assert probe_status(capture.report()) == "incomplete"
 
 
+def test_retrieval_diagnostics_keep_turn_session_and_delivered_ids():
+    capture = ProbeCapture(load_cases()[0])
+    app = SimpleNamespace(session=SimpleNamespace(session_id="primary-project"))
+    capture.user_message(app.session.session_id, "What is the corrected budget?")
+    observe = capture.observer(app)
+    observe("gate", {"decision": "retrieve", "query": "corrected budget", "fallback": False})
+    event = {"stage": "initial", "status": "complete", "delivered_ids": [["fact", 2]]}
+    observe("retrieval", event)
+    event["delivered_ids"].clear()
+    capture.user_message("another-project", "Continue")
+    app.session.session_id = "another-project"
+    observe("gate", {"decision": "skip", "query": ""})
+    events = capture.report()["retrieval_events"]
+    assert [(e["turn"], e["session_id"], e["kind"]) for e in events] == [
+        (1, "primary-project", "gate"), (1, "primary-project", "retrieval"), (2, "another-project", "gate")]
+    assert events[1]["event"]["delivered_ids"] == [["fact", 2]]
+    assert capture.events == []  # Retrieval does not count as a checkpoint.
+
+
 def test_final_memory_checks_current_facts_and_consolidation_separately(tmp_path, monkeypatch):
     from evals.context import quality
 
