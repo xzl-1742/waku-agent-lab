@@ -57,7 +57,7 @@ class CheckpointStore:
         if not policy:
             return []
         return self.conn.execute(
-            "SELECT f.id,f.content FROM facts f JOIN memory_evidence e ON e.memory_id=f.id "
+            "SELECT f.id,f.content,f.supersedes FROM facts f JOIN memory_evidence e ON e.memory_id=f.id "
             "WHERE e.kind='fact' AND e.source_kind='correction_turn' AND e.source_id=? "
             "AND f.validity='active' AND f.source='correction' "
             "AND (f.scope='global' OR (f.scope='session' AND f.scope_id=?) "

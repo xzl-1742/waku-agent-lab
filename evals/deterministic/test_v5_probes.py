@@ -63,6 +63,29 @@ def test_observer_failure_is_incomplete_without_interrupting_runtime():
     assert probe_status(capture.report()) == "incomplete"
 
 
+def test_checkpoint_captures_replacement_ids_before_later_corrections(tmp_path):
+    from evals.context.probes import judge_payload
+    from evals.deterministic.test_correction_checkpoints import background
+
+    app = app_at(tmp_path, memory_policy="lifecycle")
+    capture = ProbeCapture(next(c for c in load_cases() if c["family"] == "corrections"))
+    old = app.memory.facts.add("budget", "Budget is 900 units")
+    app.memory.facts.update(old, "Budget is 350 units")
+    replacement = app.memory.facts.list()[0]["id"]
+    background(app)
+    app.compact(observer=capture.observer(app))
+    assert not capture.errors
+    first = capture.checkpoints[0]
+    assert first["memory_versions"] == [{"source_id": 1, "id": replacement, "supersedes": old, "content": "Budget is 350 units"}]
+    app.memory.facts.update(replacement, "Budget is 275 units")
+    background(app)
+    app.compact(observer=capture.observer(app))
+    assert first["memory_versions"][0]["content"] == "Budget is 350 units"
+    assert capture.checkpoints[1]["memory_versions"][0]["supersedes"] == replacement
+    payload = judge_payload("checkpoint", first, first["snapshot"])
+    assert payload["evidence"]["memory_versions"] == first["memory_versions"]
+
+
 def test_retrieval_diagnostics_keep_turn_session_and_delivered_ids():
     capture = ProbeCapture(load_cases()[0])
     app = SimpleNamespace(session=SimpleNamespace(session_id="primary-project"))

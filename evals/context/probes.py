@@ -98,8 +98,16 @@ class ProbeCapture:
                 if row is None or row["covered_through"] != identity["covered_through"]:
                     raise ValueError("Published checkpoint could not be captured")
                 evidence = sources(app, identity["session_id"], identity["covered_through"])
+                # The update receipt names the replaced ID. Snapshot the actual
+                # replacement now, before a later correction changes this mapping.
+                active = json.loads(row["metadata_json"]).get("active_turn")
+                versions = [{"source_id": turn.last_id, **dict(fact)}
+                            for turn in app.checkpoints.sources(identity["session_id"], active_turn=active)
+                            if turn.last_id <= identity["covered_through"]
+                            for fact in app.checkpoints.corrections(turn.turn_id, identity["session_id"])]
                 self.checkpoints.append({**identity, "snapshot": json.loads(row["summary_json"]),
                     "evidence": evidence, **expectations(self.case, evidence),
+                    "memory_versions": versions,
                     "conversation": conversation(app, identity["session_id"], identity["covered_through"]),
                     "receipts": receipts(app, identity["session_id"], identity["covered_through"])})
             except Exception as exc:
@@ -152,6 +160,7 @@ def judge_payload(kind, evidence, snapshot):
     }
     if kind == "checkpoint":
         tasks[kind] += " Conversation source IDs refer to the full covered transcript. A receipt source_id identifies the user turn, not every assistant/result message. Metadata is not a separate factual claim. Dialogue can prove an answer was given but cannot prove an external action succeeded."
+        tasks[kind] += " memory_versions is a database snapshot at checkpoint publication: supersedes identifies the old ID named by an update receipt, while id identifies its current replacement. Assess value support from user evidence and receipts."
     if kind in ("memory_support", "memory_recall"):
         tasks[kind] += " The reply is an actual database snapshot. Assess only subject/content; IDs, source and scope are metadata, not additional factual claims or requests to prove storage. Explicit 'remember X' user text supports X."
         def project(fact):
@@ -159,6 +168,7 @@ def judge_payload(kind, evidence, snapshot):
         snapshot = project(snapshot) if kind == "memory_support" else [project(f) for f in snapshot]
     return {"task": tasks[kind], "evidence": {"user_messages": evidence["evidence"],
             "conversation": evidence.get("conversation", []), "dialogue": evidence.get("dialogue", []),
+            "memory_versions": evidence.get("memory_versions", []),
             "required": evidence["required"] if kind != "memory_support" else [],
             "forbidden": evidence["forbidden"]}, "reply": json.dumps(snapshot, ensure_ascii=False),
             "receipts": evidence["receipts"]}
