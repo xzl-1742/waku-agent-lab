@@ -28,6 +28,11 @@ From the exchanges below, extract:
    only things worth remembering in a month; skip chit-chat and one-offs.
 2. one single-sentence episode summarizing what happened in this conversation.
 
+Content and episode must quote a COMPLETE user message exactly (outer whitespace
+may be trimmed). Subject must be a short phrase in that message. Never save
+assistant claims, shorten away negations, infer tool results or capabilities.
+Skip questions, commands and chatter; return empty facts and episode if needed.
+
 Reply with ONLY this JSON:
 {{"facts": [{{"subject": "<who/what>", "content": "<one sentence>"}}], "episode": "<one sentence>"}}
 
@@ -67,6 +72,13 @@ def consolidate_if_due(
         if "{" not in text:  # a reasoning-only / truncated reply, not a parse error
             return 0
         distilled = json.loads(text[text.index("{") : text.rindex("}") + 1])
+        user_texts = {r["content"].strip() for r in rows if r["role"] == "user"}
+        valid_facts = [f for f in distilled.get("facts", []) if f.get("subject") and f.get("content")]
+        if any(f["content"].strip() not in user_texts or f["subject"].strip().casefold() not in f["content"].casefold()
+               for f in valid_facts):
+            return 0
+        if distilled.get("episode") and distilled["episode"].strip() not in user_texts:
+            return 0
     except Exception:
         return 0  # never lose the log — it stays unconsolidated for next time
 

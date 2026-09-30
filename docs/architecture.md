@@ -195,6 +195,11 @@ previews and saved-result references. Source hashes and per-call usage describe
 what each revision covered. Schema validation checks provenance, not semantic
 truth; real-model retention still needs quality evaluation.
 
+Active memory corrections carry a durable turn link. Checkpoint sources project
+the replacement without replaying the quarantined conversation. Each revision
+retains the exact correction and its source ID; publication rechecks the projected
+source hash, memory generation and byte limit. Original transcripts remain intact.
+
 The request assembler reloads the checkpoint and remaining message groups from
 SQLite. It reads current rules again after compaction. Provider context errors
 allow one retry of a smaller model request, while the active tool sequence stays
@@ -214,6 +219,9 @@ It links explicit corrections, deduplicates exact values, publishes bounded
 SQLite extraction batches atomically and excludes invalid sources from model
 context. Suppression invalidates earlier checkpoints while preserving archives
 and execution receipts. The default remains the legacy write policy.
+Automatic extraction accepts complete user quotations rather than assistant
+assertions or generated paraphrases. Lifecycle evidence names the exact cited
+user row; legacy extraction also checks the quotation before writing.
 
 ## Selective retrieval (V4)
 

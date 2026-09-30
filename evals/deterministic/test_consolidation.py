@@ -52,7 +52,8 @@ def memory(tmp_path):
 def add_exchanges(conn, n: int) -> None:
     """n exchanges = 2n rows. The threshold counts EXCHANGES, not messages."""
     for i in range(n):
-        conn.execute("INSERT INTO chat_log (role, content) VALUES ('user', ?)", (f"msg {i}",))
+        statements = ["Alex prefers morning meetings.", "The Acme demo is on Friday.", "Planned the Acme demo with Alex."]
+        conn.execute("INSERT INTO chat_log (role, content) VALUES ('user', ?)", (statements[i % len(statements)],))
         conn.execute("INSERT INTO chat_log (role, content) VALUES ('assistant', ?)", (f"reply {i}",))
     conn.commit()
 
@@ -148,10 +149,12 @@ def test_half_written_facts_are_dropped_not_stored(memory):
     """A fact with no subject or no content is noise. Storing it would put a
     blank row in the user's memory tab that they can see and cannot explain."""
     add_exchanges(memory.conn, 3)
+    memory.conn.execute("INSERT INTO chat_log(role,content) VALUES ('user','Raj plays tennis.')")
+    memory.conn.commit()
     partial = json.dumps({"facts": [{"subject": "Alex"},
                                     {"content": "no subject here"},
                                     {"subject": "Raj", "content": "Raj plays tennis."}],
-                          "episode": "Talked about friends."})
+                          "episode": ""})
     run(memory, [response([text_block(partial)])])
     stored = [r["subject"] for r in memory.conn.execute("SELECT subject FROM facts").fetchall()]
     assert stored == ["raj"]

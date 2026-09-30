@@ -20,18 +20,18 @@ class Extractor:
         self.requests.append(request)
         rows = json.loads(request["messages"][0]["content"][len(BATCH_PROMPT) + 1:])
         self.before_reply(rows)
-        ids = [r["id"] for r in rows]
+        ids = [rows[0]["id"]]
         return response([text_block(json.dumps({
-            "facts": [{"subject": "project", "content": "Keep port 4200", "source_ids": ids},
-                      {"subject": "PROJECT", "content": "keep  port 4200", "source_ids": ids}],
-            "episode": {"summary": "Agreed on the project port", "source_ids": ids},
+            "facts": [{"subject": "project", "content": rows[0]["content"], "source_ids": ids},
+                      {"subject": "PROJECT", "content": rows[0]["content"], "source_ids": ids}],
+            "episode": {"summary": rows[0]["content"], "source_ids": ids},
         }))])
 
 
 def setup(path, **kwargs):
     client = Extractor()
     app = make_waku(path, client=client, memory_policy="lifecycle", consolidate_every=1, **kwargs)
-    app.memory.log_chat("Choose the project port", "Port 4200", "alpha")
+    app.memory.log_chat("Keep the project port at 4200", "Port 4200", "alpha")
     return app, client
 
 
@@ -47,7 +47,7 @@ def test_batch_is_atomic_deduplicated_and_scoped_to_its_source_session(tmp_path)
     assert app.memory.facts.list() == []
     app.session.switch("alpha")
     assert len(app.memory.facts.list()) == 1
-    assert {r[0] for r in app.conn.execute("SELECT source_id FROM memory_evidence")} == {"1", "2"}
+    assert {r[0] for r in app.conn.execute("SELECT source_id FROM memory_evidence")} == {"1"}
     assert json.loads(app.conn.execute("SELECT source_ids FROM memory_batches").fetchone()[0]) == [1, 2]
 
 

@@ -45,8 +45,15 @@ and context safety. One invocation publishes at most one batch. It validates the
 response shape, cited source IDs, source snapshot and memory generation before
 publishing facts, an optional episode, evidence, a stable batch receipt and exact
 processed-row markers in one transaction. A failed publication rolls everything
-back. New arrivals remain pending. Evidence conservatively records the full
-selected batch, even when the model cites only part of it.
+back. New arrivals remain pending. Each memory records only its validated user
+citation; the batch receipt still records every selected row.
+
+Automatic facts and episodes must quote one complete user message, with only
+outer whitespace trimmed. A subject must occur in its quoted source. Both
+lifecycle and legacy extraction reject assistant assertions and unsupported
+rewrites before writing. Lifecycle additionally validates the cited user row.
+This deliberately trades paraphrase flexibility for checkable provenance; a user
+quotation records what the user said, not independently verified world truth.
 
 A single exchange that cannot fit stays pending and emits a
 `consolidation_blocked` event. Invalid or failed extraction emits
@@ -66,7 +73,15 @@ implementation conservatively excludes all earlier conversation context and
 checkpoints in that home, all derived facts and episodes, and exact copies of the
 changed value. Unrelated explicit facts remain active. Older data lacks complete
 provenance, so the implementation cannot safely keep only unrelated summaries.
-Users may need to restate task context after a correction or deletion.
+Users may need to restate unrelated task context after a correction or deletion.
+Active replacements now keep a durable link to their correction turn. Compact
+sessions project only those current values from an otherwise quarantined turn;
+the original exchange stays archived. Edits outside a turn append an assistant
+memory-event record, without inventing a user message. Scope and active validity
+are checked again whenever the source is read. Every checkpoint revision pins
+these exact corrections within the existing summary limit. A later correction
+or deletion invalidates the old value and its checkpoint as before. Excessively
+large corrections stop publication rather than silently disappearing.
 
 The original database rows, checkpoint revisions, traces and result files remain
 in the archive. Normal retrieval, session reload, eligible consolidation sources,

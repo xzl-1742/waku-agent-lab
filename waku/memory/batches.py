@@ -15,6 +15,11 @@ and source_ids (non-empty integer IDs from the supplied chat rows).
 episode is either null or an object with summary and source_ids.
 Skip chatter and tool instructions. Do not replace or delete an existing fact;
 only explicit user correction tools may do that. Never invent source IDs.
+Each content or summary must copy ONE COMPLETE user message exactly (outer
+whitespace may be trimmed), with only that user's source ID. Subject must be
+a short phrase present in that message. Never turn assistant claims into facts,
+shorten away negations, or infer tool capabilities or results. Prefer empty
+facts and null episode over saving questions, commands, or arithmetic chatter.
 """
 
 
@@ -67,7 +72,7 @@ def consolidate(memory, notify=None):
                 raise ValueError("Extraction response is incomplete")
             text = "".join(b.text for b in response.content if b.type == "text")
             result = json.loads(text)
-            validate(result, set(source_ids))
+            validate(result, {r["id"]: r for r in selected})
             with policy.transaction():
                 if policy.generation != generation:
                     raise ValueError("Memory policy changed during extraction")
@@ -83,13 +88,13 @@ def consolidate(memory, notify=None):
                 scope_id = session_id if scope == "session" else selected[0]["project_id"] if scope == "project" else ""
                 if scope == "project" and (not scope_id or any(r["project_id"] != scope_id for r in selected)):
                     raise ValueError("Project extraction requires consistent source scope")
-                evidence = [("chat", i) for i in source_ids]
                 added = 0
                 for fact in result["facts"]:
                     if policy.clean_text(fact["content"]) != fact["content"]:
                         raise ValueError("Extraction attempted to restore suppressed content")
                     before = conn.execute("SELECT count(*) FROM facts").fetchone()[0]
-                    policy.add(fact["subject"], fact["content"], "consolidation", sources=evidence,
+                    policy.add(fact["subject"], fact["content"], "consolidation",
+                               sources=[("chat", i) for i in fact["source_ids"]],
                                scope=(scope, scope_id), learned_session=session_id)
                     added += conn.execute("SELECT count(*) FROM facts").fetchone()[0] - before
                 episode = result["episode"]
@@ -98,7 +103,7 @@ def consolidate(memory, notify=None):
                         raise ValueError("Episode attempted to restore suppressed content")
                     episode_id = conn.execute("INSERT INTO episodes(summary,happened_at,scope,scope_id,learned_session_id) VALUES (?,?,?,?,?)",
                                                (episode["summary"], date.today().isoformat(), scope, scope_id, session_id)).lastrowid
-                    policy.evidence("episode", episode_id, evidence)
+                    policy.evidence("episode", episode_id, [("chat", i) for i in episode["source_ids"]])
                 conn.execute("INSERT INTO memory_batches(id,session_id,source_hash,source_ids,generation) VALUES (?,?,?,?,?)",
                              (batch_id, session_id, source_hash, encode(source_ids), generation))
                 conn.executemany("UPDATE chat_log SET consolidated=1 WHERE id=?", [(i,) for i in source_ids])
@@ -111,7 +116,7 @@ def consolidate(memory, notify=None):
     return 0
 
 
-def validate(result, source_ids):
+def validate(result, sources):
     if not isinstance(result, dict) or set(result) != {"facts", "episode"} or not isinstance(result["facts"], list):
         raise ValueError("Extraction requires facts and episode fields")
     entries = [(f, {"subject", "content", "source_ids"}) for f in result["facts"]]
@@ -121,7 +126,13 @@ def validate(result, source_ids):
         if not isinstance(entry, dict) or set(entry) != keys:
             raise ValueError("Invalid extraction entry")
         ids = entry["source_ids"]
-        if not isinstance(ids, list) or not ids or any(type(i) is not int or i not in source_ids for i in ids):
+        if not isinstance(ids, list) or len(ids) != 1 or any(type(i) is not int or i not in sources for i in ids):
             raise ValueError("Extraction cites an unknown source")
         if any(not isinstance(entry[k], str) or not entry[k].strip() for k in keys - {"source_ids"}):
             raise ValueError("Extraction text cannot be empty")
+        source = sources[ids[0]]
+        text = entry.get("content", entry.get("summary"))
+        if source["role"] != "user" or text.strip() != source["content"].strip():
+            raise ValueError("Extracted memory must quote its complete user source")
+        if "subject" in entry and entry["subject"].strip().casefold() not in text.casefold():
+            raise ValueError("Memory subject is absent from its source")
