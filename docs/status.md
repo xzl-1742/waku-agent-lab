@@ -11,7 +11,7 @@ a retrieval gate), tools, and both eval tiers. `waku`, `waku dashboard`,
 `waku voice`, `waku telegram`, `waku discord`, `waku brief` and
 `waku connect google` all start.
 
-**1286 checks pass in the isolated offline suite**, with no API key; 63 checks
+**1301 checks pass in the isolated offline suite**, with no API key; 63 checks
 skip because they require API access, optional extras or macOS. CI runs the offline tier on every PR along with
 ruff, the skills validator, and a check that `.env.example` still matches the
 integrations registry.
@@ -60,8 +60,8 @@ cost remain unmeasured. The default retrieval policy remains `legacy`; see
 **V5 adds combined evaluation and attributed usage.** All 720 scripted runs
 complete across four policies and five repetitions. Ops and Memory show context,
 checkpoints, evidence IDs and runtime/judge coverage. Explicit live execution,
-calibration and intermediate-state checks are implemented. Flash trials published 30 checkpoints.
-D now recalls the corrected fact in one 32-turn check; its checkpoints still omit it.
+calibration and intermediate-state checks are implemented. Flash trials published 32 checkpoints.
+D retains the corrected value in both new checkpoints; live scoring still needs complete version evidence.
 D reduces scripted input estimates 24.8%; real improvement and live acceptance remain unproven. See
 [the V5 report](v5-baseline.md), including the full-run provenance limitation.
 

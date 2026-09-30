@@ -439,6 +439,107 @@ The full isolated suite passed 1,286 checks with 63 skips. Ruff, skill validatio
 and the environment-template check passed. The strict release gate still reports
 incomplete live coverage; no promotion or default-policy change is justified.
 
+## Checkpoint and extraction repair, 2026-09-30
+
+The corrected value now survives both checkpoint revisions in the targeted
+32-turn Flash run. The final answer returned 350 units, and neither checkpoint
+asserted 900. This closes the observed value-retention defect. The runtime
+fixes are `d7fe508` and `9b9c43f`; `c5dd1bc` adds checkpoint-time version evidence.
+
+Correction writes retain a link to the mutation turn. Checkpoint reads project
+only the active replacement, preserving the archived conversation. Every
+revision pins that current value and rechecks scope, generation, provenance and
+the existing byte bound. Repeated correction, deletion, restart and unrelated
+memory invalidation have deterministic regressions. A completed response clears
+its mutation-turn identity so later standalone edits cannot inherit that turn.
+
+Both extraction policies now reject generated facts or episodes that are not
+complete user quotations. Lifecycle extraction requires exactly one matching
+user citation and records it per memory, rather than attributing the whole batch.
+Regressions reject invented log lengths, assistant-only claims, false subject
+labels and quotes with negation removed. These guarantees concern automatic
+extraction, not the truth of user statements or every explicit model tool write.
+The stricter policy deliberately gives up automatic paraphrasing and can leave
+an invalid batch pending for retry.
+
+### Final offline checks
+
+The final suite passed **1,301 checks**, with 63 skips. Ruff, skill validation
+and the generated environment-template check passed. Four 32-turn development
+cases (correction, forgetting, constraints and tools) completed on all four arms
+with three scripted repetitions: **48 runs and 1,536 user turns**. The declared
+critical invariant checks reported no failures. Source snapshots stayed stable.
+
+| Scripted arm | Runs | Estimated input tokens | Model calls |
+|---|---:|---:|---:|
+| A | 12 | 6,952,935 | 855 |
+| B | 12 | 5,082,495 | 891 |
+| C | 12 | 4,857,489 | 843 |
+| D | 12 | 5,294,571 | 873 |
+
+D used 23.85% fewer estimated input tokens than A in this selected scripted
+matrix. These are serialized-byte estimates, not provider tokens or measured
+billing savings. Repeated scripted outputs are not independent model samples.
+The matrix has only one scenario per family, so its collapsed bootstrap
+intervals do not establish statistical certainty. Local runtime increased.
+
+The report is `eval-results/memory-repair-scripted-20260930.json`, with SHA-256
+`c9d597162c43b3b4d467a8e0a9441b1c1a01d471577926a1ff9ea200279fb35f`.
+
+### Live observations and scoring boundary
+
+The fresh D run made 78 measured Flash calls: 73 runtime calls and five judges.
+It consumed 94,213 input tokens (53,376 cache hits) and 1,957 output tokens.
+The final answer and both stored-fact checks passed. Both raw checkpoint
+snapshots contain 350 and omit 900. Runtime input was 76,276 tokens versus
+70,948 in the preceding retrieval-only run; this repair makes no real cost-saving
+claim from that pair of single trials.
+
+The initial checkpoint judge accepted one revision and rejected the other
+because the summary named current fact 2 while the update receipt named old
+fact 1. The runtime had correctly created replacement fact 2. A judge-only
+follow-up confirmed the evidence gap: it rejected both numbered references
+because the saved checkpoint evidence lacked that version mapping. The original
+report remains failed; no verdict was overwritten. The new observer now captures
+`id`, `supersedes`, content and source boundary at publication, with a regression
+showing that later corrections cannot rewrite an earlier snapshot. This added
+capture still needs a fresh live run; it is not backfilled into old evidence.
+
+The first scoring follow-up stopped after eight calibration calls because its
+call allowance was too small. The completed follow-up used 20 calls and matched
+14 of 15 unreviewed calibration examples. The mismatch concerned overlapping
+stale/unsupported labels for a forgotten value. Neither follow-up establishes
+reviewed calibration or full acceptance.
+
+The runtime report is `eval-results/flash-memory-repair-20260930/report.json`,
+with SHA-256 `6652abe2f5931ff1bd44ee870c03ac97c636e78f377676fefeb88b36eb0b5bbf`.
+The completed scoring report is
+`eval-results/flash-memory-repair-regrade-complete-20260930/report.json`.
+All 106 calls in this repair session returned usage. Their peak-rate cost bound
+is CNY 0.14809736; the verified off-peak rates estimate CNY 0.07404868. The shared
+campaign journal now settles CNY 2.89386480 conservatively with zero unresolved
+reservations. The latest balance observation is CNY 23.35, subject to billing lag.
+
+The original CNY 5 allowance cannot reserve the next full-context answer call
+after that settled total. Further paid runtime comparisons require an approved
+allowance increase. Full live acceptance, independent calibration review and a
+second provider remain incomplete. The default policies stay unchanged.
+
+### Project description supported by these results
+
+- Extended an open-source Python agent with SQLite memory versions, scoped
+  retrieval, suppression, provenance-checked checkpoints and restart recovery.
+- Added deterministic source-grounding checks to automatic memory extraction
+  and preserved correction values across repeated compactions without restoring
+  superseded or deleted context.
+- Verified 1,301 offline checks and a 48-run scripted comparison, and traced a
+  32-turn DeepSeek Flash correction case through storage, retrieval and two
+  checkpoint revisions. Recorded real usage and retained failed judge evidence.
+
+These claims describe engineering and observed tests. They do not claim a full
+live pass, production reliability, independent statistical validation or a
+23.85% reduction in real API cost.
+
 ## Policy rollback
 
 Select `WAKU_CONTEXT_POLICY=budget`, `WAKU_MEMORY_POLICY=legacy` and
