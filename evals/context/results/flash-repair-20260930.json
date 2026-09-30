@@ -1,0 +1,1513 @@
+{
+  "schema_version": 1,
+  "scope": "targeted development verification",
+  "expected_runs": 13,
+  "expected_turns": 480,
+  "quality_status": "incomplete",
+  "promotion_status": "incomplete",
+  "totals": {
+    "runs": 13,
+    "turns": 480,
+    "final_answer_passes": 12,
+    "combined_passes": 9,
+    "checkpoint_count": 38,
+    "checkpoint_checks": 38,
+    "checkpoint_passes": 36,
+    "memory_support_checks": 10,
+    "memory_support_passes": 10,
+    "memory_recall_checks": 4,
+    "memory_recall_passes": 4
+  },
+  "accounting": {
+    "runtime_calls": 1098,
+    "runtime_failed_calls": 0,
+    "runtime_unmeasured_calls": 0,
+    "runtime_input_tokens": 1184605,
+    "runtime_output_tokens": 31560,
+    "judge_calls": 80,
+    "judge_failed_calls": 0,
+    "judge_unmeasured_calls": 0,
+    "judge_input_tokens": 272352,
+    "judge_output_tokens": 4484
+  },
+  "turn_latency_seconds": {
+    "samples": 480,
+    "median": 1.8716787000303157,
+    "p95_nearest_rank": 3.5770876000169665,
+    "limit": "Local wall-clock observations, not a controlled latency comparison"
+  },
+  "batch_peak_estimate_cny": "1.53694220",
+  "coverage_complete": true,
+  "all_sources_stable": true,
+  "date": "2026-09-30",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "thinking": "disabled",
+  "arm": "D",
+  "split": "development",
+  "independent_calibration_reviewed": false,
+  "offline": {
+    "report": "eval-results/final-campaign-gate-20260930/eval_report.json",
+    "sha256": "28ca82dcd73023b939d396d3e2a650f6efc0854f7579ea5bf92953b25aecc2bb",
+    "suites": {
+      "deterministic": {
+        "passed": 1302,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 63,
+        "status": "complete",
+        "reason": "",
+        "duration_seconds": 799.4687886000611
+      },
+      "judge": {
+        "status": "skipped",
+        "reason": "live evaluation was not requested",
+        "passed": 0,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "duration_seconds": null
+      }
+    },
+    "status": "incomplete"
+  },
+  "limits": [
+    "This selected development cohort does not supply full release acceptance.",
+    "Raw verdicts are retained, including disagreements identified by assistant inspection.",
+    "No controlled live A/B cost or latency comparison was performed.",
+    "Original synthetic reports remain in the local ignored eval-results directory."
+  ],
+  "batches": [
+    {
+      "report": "eval-results/flash-final-repeated-20260930/report.json",
+      "sha256": "7aa2c3558f0afa18a6cf120de045f54f61cbda10781f4bad1463bab61d24783c",
+      "status": "complete",
+      "source_commit": "7847cf2858673389c2a226c5d82045562546cb2f",
+      "source_stable": true,
+      "usage": {
+        "runtime": {
+          "calls": 880,
+          "failed_calls": 0,
+          "unmeasured_calls": 0,
+          "usage_complete": true,
+          "input_tokens": 942441,
+          "output_tokens": 25531,
+          "known_input_tokens": 942441,
+          "known_output_tokens": 25531,
+          "cost_usd": null,
+          "known_cost_usd": 0,
+          "unpriced_calls": 880,
+          "by_stage": {
+            "selective_gate": 384,
+            "answer": 409,
+            "consolidation": 55,
+            "compaction": 32
+          }
+        },
+        "judge": {
+          "calls": 68,
+          "failed_calls": 0,
+          "unmeasured_calls": 0,
+          "usage_complete": true,
+          "input_tokens": 190668,
+          "output_tokens": 3745,
+          "known_input_tokens": 190668,
+          "known_output_tokens": 3745,
+          "cost_usd": null,
+          "known_cost_usd": 0,
+          "unpriced_calls": 68,
+          "by_stage": {
+            "judge": 68
+          }
+        },
+        "boundary": "SDK invocations; hidden SDK retries excluded"
+      },
+      "calibration": {
+        "status": "incomplete",
+        "reviewed": false,
+        "example_check_status": "failed",
+        "agreement": 0.9333333333333333
+      },
+      "manifest_sha256": "c4718d703f2f090e4f331a33f0cd116a1293c95edc6c816cfaea4636562a0bb7",
+      "models": {
+        "answer": "deepseek-flash",
+        "small": "deepseek-flash",
+        "judge": "deepseek-flash"
+      },
+      "quality_status": "incomplete",
+      "promotion_status": "failed",
+      "spend": {
+        "requests": 948,
+        "batch_conservative_spend_cny": "1.17454284",
+        "unresolved_reservations": 0,
+        "sdk_retries": 0,
+        "timeout_seconds": 90,
+        "pricing_source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+        "pricing_checked_at": "2026-09-29"
+      }
+    },
+    {
+      "report": "eval-results/flash-final-long96-20260930/report.json",
+      "sha256": "5003f6521fdbecbd62300666f791422ef37a0c6cdd08e67c0c8ef795dbe620f9",
+      "status": "complete",
+      "source_commit": "7847cf2858673389c2a226c5d82045562546cb2f",
+      "source_stable": true,
+      "usage": {
+        "runtime": {
+          "calls": 218,
+          "failed_calls": 0,
+          "unmeasured_calls": 0,
+          "usage_complete": true,
+          "input_tokens": 242164,
+          "output_tokens": 6029,
+          "known_input_tokens": 242164,
+          "known_output_tokens": 6029,
+          "cost_usd": null,
+          "known_cost_usd": 0,
+          "unpriced_calls": 218,
+          "by_stage": {
+            "selective_gate": 96,
+            "answer": 98,
+            "consolidation": 15,
+            "compaction": 9
+          }
+        },
+        "judge": {
+          "calls": 12,
+          "failed_calls": 0,
+          "unmeasured_calls": 0,
+          "usage_complete": true,
+          "input_tokens": 81684,
+          "output_tokens": 739,
+          "known_input_tokens": 81684,
+          "known_output_tokens": 739,
+          "cost_usd": null,
+          "known_cost_usd": 0,
+          "unpriced_calls": 12,
+          "by_stage": {
+            "judge": 12
+          }
+        },
+        "boundary": "SDK invocations; hidden SDK retries excluded"
+      },
+      "calibration": {
+        "status": "incomplete",
+        "reviewed": null,
+        "example_check_status": null,
+        "agreement": null
+      },
+      "manifest_sha256": "c4718d703f2f090e4f331a33f0cd116a1293c95edc6c816cfaea4636562a0bb7",
+      "models": {
+        "answer": "deepseek-flash",
+        "small": "deepseek-flash",
+        "judge": "deepseek-flash"
+      },
+      "quality_status": "incomplete",
+      "promotion_status": "failed",
+      "spend": {
+        "requests": 230,
+        "batch_conservative_spend_cny": "0.36239936",
+        "unresolved_reservations": 0,
+        "sdk_retries": 0,
+        "timeout_seconds": 90,
+        "pricing_source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+        "pricing_checked_at": "2026-09-29"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "forget-02",
+      "trial": 3,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": false,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Reply correctly does not disclose the forgotten address, treating memory as empty; no stale or invented facts asserted."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": true,
+        "passed": true,
+        "matches": [],
+        "limit": "Literal synthetic value only; paraphrases still require semantic review"
+      },
+      "probe_metrics": {
+        "status": "failed",
+        "checkpoint_retention": {
+          "passed": 1,
+          "total": 2,
+          "rate": 0.5
+        },
+        "memory_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [
+        {
+          "id": "checkpoint/1",
+          "error": null,
+          "verdict": {
+            "task_success": false,
+            "stale_assertion": false,
+            "unsupported_assertion": false,
+            "reason": "Reply summarizes arithmetic answers; no forget/oldaddress claim is asserted, so no stale/unsupported flag. But it lists completed actions with wrong source_ids and omits the delete/other constraints, so checkpoint isn't fully preserved."
+          }
+        }
+      ],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": []
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "id": "constraint-02",
+      "trial": 1,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Budget limit 'below 400 units' is supported and current; snapshot and receipt confirm it. No superseded or invented claim."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "For beacon, keep the budget below 400 units.",
+              "source_ids": [
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "For beacon, keep the budget below 400 units.",
+              "source_ids": [
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 3,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "For beacon, keep the budget below 400 units.",
+              "source_ids": [
+                1
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tool-02",
+      "trial": 3,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Correctly reports B23 from the successful record_action receipt, notes no path evidence, and avoids re-running the export as instructed."
+      },
+      "action_check": true,
+      "actual_actions": [
+        "Export number B23 was created"
+      ],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Perform exportbeta only once.",
+              "source_ids": [
+                1,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Perform exportbeta only once.",
+              "source_ids": [
+                1,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 3,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Perform exportbeta only once.",
+              "source_ids": [
+                1,
+                4
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forget-02",
+      "trial": 2,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Reply correctly reports no stored address, avoiding restating the forgotten value; forget request was completed and memory empty. No fabricated claims."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": true,
+        "passed": true,
+        "matches": [],
+        "limit": "Literal synthetic value only; paraphrases still require semantic review"
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": []
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "id": "forget-02",
+      "trial": 1,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "User asked what address was forgotten; reply abstains without disclosing the deleted value, so no stale assertion. The suppression claim is plausible given failed read_result receipts."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": true,
+        "passed": true,
+        "matches": [],
+        "limit": "Literal synthetic value only; paraphrases still require semantic review"
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": []
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "id": "constraint-02",
+      "trial": 2,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": false,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Reply correctly states the stored beacon budget limit (below 400 units) matching evidence; caveat honestly abstains on spend figure, so no invented claim."
+      },
+      "action_check": false,
+      "actual_actions": [
+        "Keep the budget below 400 units"
+      ],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Keep the budget below 400 units.",
+              "source_ids": [
+                1,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Keep the budget below 400 units.",
+              "source_ids": [
+                1,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 3,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Keep the budget below 400 units.",
+              "source_ids": [
+                1,
+                3,
+                4
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tool-02",
+      "trial": 1,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Assistant correctly abstained on location: only receipt confirms export B23 created, no path given. It did not repeat the export, did not invent a location, and disclosed no deleted value."
+      },
+      "action_check": true,
+      "actual_actions": [
+        "Export number B23 was created"
+      ],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Exportbeta should be performed only once.",
+              "source_ids": [
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Exportbeta should be performed only once.",
+              "source_ids": [
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 3,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Exportbeta should be performed only once.",
+              "source_ids": [
+                1
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "constraint-02",
+      "trial": 3,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Answer matches authoritative fact (budget below 400 units) and stored memory; supported by evidence."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "For beacon, keep the budget below 400 units.",
+              "source_ids": [
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "For beacon, keep the budget below 400 units.",
+              "source_ids": [
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 3,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "For beacon, keep the budget below 400 units.",
+              "source_ids": [
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "correction-02",
+      "trial": 2,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Reply states correct current budget of 350 units, matching authoritative facts and the memory snapshot; it does not assert the superseded 900 value."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [
+            {
+              "source_id": 12,
+              "id": 2,
+              "content": "Budget is 350 units.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Budget is 350 units.",
+              "source_ids": [
+                12
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [
+            {
+              "source_id": 12,
+              "id": 2,
+              "content": "Budget is 350 units.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Budget is 350 units.",
+              "source_ids": [
+                12
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tool-02",
+      "trial": 2,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": false,
+      "final_answer_pass": false,
+      "final_verdict": {
+        "task_success": false,
+        "stale_assertion": false,
+        "unsupported_assertion": true,
+        "reason": "Task asked where the completed export is; reply admits no path known, so not satisfied. It also asserts record_action 'produced' B23 and read_fixture had 'unverified' success without receipts supporting those claims."
+      },
+      "action_check": true,
+      "actual_actions": [
+        "Export number B23 was created"
+      ],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "required_fact_recall": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Run exportbeta exactly once; no repeats.",
+              "source_ids": [
+                1,
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [],
+          "constraints": [
+            {
+              "text": "Run exportbeta exactly once; no repeats.",
+              "source_ids": [
+                1,
+                4
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "correction-02",
+      "trial": 3,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Corrected budget 350 units matches the authoritative fact and current memory snapshot; the answer does not assert the superseded 900 value."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [
+            {
+              "source_id": 12,
+              "id": 2,
+              "content": "Budget is 350 units.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Budget is 350 units.",
+              "source_ids": [
+                12
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [
+            {
+              "source_id": 12,
+              "id": 2,
+              "content": "Budget is 350 units.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Budget is 350 units.",
+              "source_ids": [
+                12
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "correction-02",
+      "trial": 1,
+      "turns": 32,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": true,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Reply states corrected budget 350 units, matching the current corrected memory fact; no superseded 900 value disclosed."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "complete",
+        "checkpoint_retention": {
+          "passed": 2,
+          "total": 2,
+          "rate": 1.0
+        },
+        "memory_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [
+            {
+              "source_id": 12,
+              "id": 2,
+              "content": "The budget is 350 units.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: The budget is 350 units.",
+              "source_ids": [
+                12
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [
+            {
+              "source_id": 12,
+              "id": 2,
+              "content": "The budget is 350 units.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: The budget is 350 units.",
+              "source_ids": [
+                12
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "correction-03",
+      "trial": 1,
+      "turns": 96,
+      "status": "complete",
+      "runtime_error": null,
+      "error": null,
+      "combined_pass": false,
+      "final_answer_pass": true,
+      "final_verdict": {
+        "task_success": true,
+        "stale_assertion": false,
+        "unsupported_assertion": false,
+        "reason": "Reply states current correct version 8, matching the authoritative fact and snapshot; it does not assert the superseded version 7."
+      },
+      "action_check": true,
+      "actual_actions": [],
+      "forgetting_check": {
+        "applicable": false,
+        "passed": true,
+        "matches": []
+      },
+      "probe_metrics": {
+        "status": "failed",
+        "checkpoint_retention": {
+          "passed": 8,
+          "total": 9,
+          "rate": 0.8888888888888888
+        },
+        "memory_supportedness": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "required_fact_recall": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "consolidated_fact_supportedness": {
+          "passed": 0,
+          "total": 0,
+          "rate": null
+        }
+      },
+      "capture_errors": [],
+      "failed_probes": [
+        {
+          "id": "checkpoint/0",
+          "error": null,
+          "verdict": {
+            "task_success": false,
+            "stale_assertion": false,
+            "unsupported_assertion": true,
+            "reason": "Required constraint satisfied (version 8), but 'Answered 2+2 as 4' for steps 4-11 is unsupported: steps 4-11 recei not in transcript. No stale v7 claim. Unsupported completed-action claim."
+          }
+        }
+      ],
+      "checkpoint_versions": [
+        {
+          "revision": 1,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 2,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 3,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 4,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 5,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 6,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 7,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 8,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        },
+        {
+          "revision": 9,
+          "memory_versions": [
+            {
+              "source_id": 14,
+              "id": 2,
+              "content": "Release uses version 8.",
+              "supersedes": 1
+            }
+          ],
+          "constraints": [
+            {
+              "text": "Current corrected memory:\nFact #2: Release uses version 8.",
+              "source_ids": [
+                14
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "evidence_inspection": {
+    "schema_version": 1,
+    "review_type": "assistant inspection of saved synthetic evidence; not independent human calibration",
+    "overwrites_judge_verdicts": false,
+    "findings": [
+      {
+        "report": "flash-final-repeated-20260930/runs.jsonl",
+        "case": "forget-02",
+        "trial": 3,
+        "probe": "checkpoint/1",
+        "original_judge_pass": false,
+        "judge_claim": "Wrong source_ids and omitted deletion/other constraints",
+        "evidence": {
+          "required_constraints": [],
+          "forbidden_value": "Old address is Example Street 42",
+          "forbidden_value_disclosed": false,
+          "first_entry": "Answers for arithmetic steps 3-11 cite assistant sources 14,16,18,20,22,24,26,28,30, all containing 4.",
+          "second_entry": "Answers for steps 12-20 cite source pairs 31/32 through 47/48; each is the matching question and answer 4."
+        },
+        "assessment": "The cited reasons do not follow from the captured source rows or declared empty requirement list. Preserve the raw failed verdict as judge disagreement."
+      },
+      {
+        "report": "flash-final-repeated-20260930/runs.jsonl",
+        "case": "constraint-02",
+        "trial": 2,
+        "probe": "action_check",
+        "original_judge_pass": null,
+        "evidence": {
+          "expected_actions": [],
+          "actual_actions": [
+            "Keep the budget below 400 units"
+          ],
+          "tool": "record_action",
+          "description": "Perform beacon once and return its generated completion receipt. This is the local fixture action requested by the user."
+        },
+        "assessment": "The action check correctly rejects an unexpected tool execution. The fixture description claims an action was requested even in a constraint-only scenario, which may encourage tool selection. This is a model/tool-contract failure in the frozen cohort; no post-hoc pass is assigned."
+      },
+      {
+        "report": "flash-final-repeated-20260930/runs.jsonl",
+        "case": "tool-02",
+        "trial": 2,
+        "probe": "final_answer",
+        "original_judge_pass": false,
+        "evidence": {
+          "actual_actions": [
+            "Export number B23 was created"
+          ],
+          "restart_repeated_action": false,
+          "reply_reports_receipt": "B23",
+          "reply_reports_log_metadata_as_content": true,
+          "log_content": "16384 repeated x characters; action_success metadata is not log content"
+        },
+        "assessment": "The reply confuses execution metadata with the synthetic log's contents and includes irrelevant arithmetic. The judge also disputes the B23 receipt despite captured execution evidence. Preserve the failed final verdict; successful deduplication alone does not establish answer quality."
+      },
+      {
+        "report": "flash-final-long96-20260930/report.json",
+        "case": "correction-03",
+        "trial": 1,
+        "probe": "checkpoint/0",
+        "original_judge_pass": false,
+        "judge_claim": "Arithmetic steps 4-11 are not in the transcript",
+        "evidence": {
+          "required_constraint": "Release uses version 8",
+          "constraint_preserved": true,
+          "cited_sources": "The checkpoint and judge input include source pairs 15/16 through 29/30. Each pair contains the corresponding step 4-11 question and the assistant answer 4.",
+          "superseded_value_asserted": false
+        },
+        "assessment": "The unsupported-arithmetic reason conflicts with the supplied transcript. The current version survives all nine revisions. Preserve the raw failed verdict as judge disagreement; this inspection is not independent calibration."
+      }
+    ]
+  }
+}

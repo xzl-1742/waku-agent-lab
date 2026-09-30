@@ -503,7 +503,8 @@ because the saved checkpoint evidence lacked that version mapping. The original
 report remains failed; no verdict was overwritten. The new observer now captures
 `id`, `supersedes`, content and source boundary at publication, with a regression
 showing that later corrections cannot rewrite an earlier snapshot. This added
-capture still needs a fresh live run; it is not backfilled into old evidence.
+capture needed a fresh live run at that stage; the repeated cohort below supplies
+that evidence without backfilling older reports.
 
 The first scoring follow-up stopped after eight calibration calls because its
 call allowance was too small. The completed follow-up used 20 calls and matched
@@ -520,10 +521,10 @@ is CNY 0.14809736; the verified off-peak rates estimate CNY 0.07404868. The shar
 campaign journal now settles CNY 2.89386480 conservatively with zero unresolved
 reservations. The latest balance observation is CNY 23.35, subject to billing lag.
 
-The original CNY 5 allowance cannot reserve the next full-context answer call
-after that settled total. Further paid runtime comparisons require an approved
-allowance increase. Full live acceptance, independent calibration review and a
-second provider remain incomplete. The default policies stay unchanged.
+The original CNY 5 allowance could not reserve the next full-context answer call
+after that settled total. The repeated cohort below used an explicitly approved
+CNY 8 cumulative allowance. Full live acceptance, independent calibration review
+and a second provider remain incomplete. The default policies stay unchanged.
 
 ### Project description supported by these results
 
@@ -539,6 +540,103 @@ second provider remain incomplete. The default policies stay unchanged.
 These claims describe engineering and observed tests. They do not claim a full
 live pass, production reliability, independent statistical validation or a
 23.85% reduction in real API cost.
+
+## Repeated Flash verification, 2026-09-30
+
+The frozen D cohort completed **13 runs and 480 user turns**. Final-answer
+judgments passed **12/13**, while combined answer, action and intermediate-state
+checks passed **9/13**. These results verify selected development scenarios;
+they do not establish full live acceptance. All original failures remain in
+[the committed observation summary](../evals/context/results/flash-repair-20260930.json).
+
+The runtime fixes remained at source commit
+`7847cf2858673389c2a226c5d82045562546cb2f` throughout both batches. Four 32-turn
+cases ran three times each, followed by one 96-turn correction case. Each run
+used fresh disposable state and DeepSeek Flash with thinking disabled. Source
+snapshots stayed stable, all 1,178 model calls returned usage, and no call failed.
+
+### Measured outcomes
+
+| Development case | Runs | Turns per run | Final-answer passes | Combined passes | Checkpoint passes |
+|---|---:|---:|---:|---:|---:|
+| Correction, `correction-02` | 3 | 32 | 3/3 | 3/3 | 6/6 |
+| Forgetting, `forget-02` | 3 | 32 | 3/3 | 2/3 | 5/6 |
+| Constraint, `constraint-02` | 3 | 32 | 3/3 | 2/3 | 9/9 |
+| Tool receipt and restart, `tool-02` | 3 | 32 | 2/3 | 2/3 | 8/8 |
+| Long correction, `correction-03` | 1 | 96 | 1/1 | 0/1 | 8/9 |
+| Total | 13 | 480 total | 12/13 | 9/13 | 36/38 |
+
+All four correction runs returned the current value. Each of their 15 published
+checkpoints retained the replacement and its version mapping. The 96-turn case
+preserved version 8 through nine compactions. All three forgetting runs ended
+with empty memory and passed both the final-answer judgment and literal deleted
+value check. All three tool runs executed the export exactly once across restart.
+These observations describe the selected fixtures, not general reliability rates.
+
+Stored-fact support passed 10/10 judgments, and required memory recall passed
+4/4. The isolated offline suite passed **1,302 checks**, with 63 skips and no
+failures. Ruff, skill validation and the environment-template check passed.
+The strict release gate reports `incomplete` because its separate live suite was
+not requested. These exploratory Flash batches do not replace that suite or
+the full comparison and independent calibration requirements.
+
+### Four retained failures
+
+- `forget-02`, trial 3, failed one checkpoint judgment. The judge claimed that
+  arithmetic citations were wrong and deletion constraints were missing. The
+  captured input contains those source rows, declares no required constraints
+  and does not disclose the deleted address. Assistant inspection found a
+  disagreement with the supplied evidence; the raw failed verdict remains.
+- `constraint-02`, trial 2, made an unexpected `record_action` call. The action
+  check correctly failed even though the final answer and checkpoints passed.
+  The fixture tool describes an action as requested in every family, which may
+  encourage selection in a constraint-only task. This contract and model
+  selection problem remains visible in the result.
+- `tool-02`, trial 2, failed the final-answer judgment. The export was not
+  repeated and the reply retained receipt B23, but it mixed unrelated arithmetic
+  into the answer and described execution metadata as synthetic log content.
+  The judge also disputed captured receipt evidence. Successful recovery alone
+  does not establish answer quality, so the failed result remains.
+- `correction-03` failed its first checkpoint judgment because the judge claimed
+  arithmetic steps 4-11 were absent. The actual judge input contains question
+  and answer pairs 15/16 through 29/30. All nine checkpoints retain version 8.
+  Assistant inspection records the disagreement without changing the verdict.
+
+The provisional calibration check matched 14/15 labels. Its remaining mismatch
+concerns stale and unsupported labels for a forgotten value. The calibration
+labels have no independent review, and this cohort uses one provider. Both
+`quality_status` and `promotion_status` remain `incomplete`; the default policies
+remain unchanged. No repeated judging was used to replace a failed outcome.
+
+### Usage and reproduction
+
+The batches made 1,098 runtime calls and 80 judge calls. Providers reported
+1,456,957 input tokens and 36,044 output tokens. The peak-rate estimate for
+these batches is **CNY 1.53694220**, using recorded cache usage. The shared
+campaign journal settles CNY 4.43080700 with zero unresolved reservations under
+the approved CNY 8 allowance. Account balance changes can lag billed usage;
+they are not a substitute for the usage ledger. This cohort makes no claim of
+improved live cost or latency relative to another policy.
+
+The two original local reports are
+`eval-results/flash-final-repeated-20260930/report.json` (SHA-256
+`7aa2c3558f0afa18a6cf120de045f54f61cbda10781f4bad1463bab61d24783c`) and
+`eval-results/flash-final-long96-20260930/report.json` (SHA-256
+`5003f6521fdbecbd62300666f791422ef37a0c6cdd08e67c0c8ef795dbe620f9`).
+The committed observation summary records source hashes, original verdicts,
+per-case metrics, version evidence and inspection notes. It excludes account
+balances and credentials; the full synthetic transcripts remain local.
+
+With a process-level `DEEPSEEK_API_KEY`, a user can reproduce the selected scope
+with the commands below. These commands make paid API calls. Both batches share
+one journal and CNY 8 cumulative allowance; output directories must be new.
+When increasing an existing journal's allowance, `--increase-budget` records
+the explicitly authorized increase while retaining prior spend and reservations.
+
+```sh
+python -m evals.context.deepseek_pilot --live --budget-cny 8 --budget-ledger eval-results/repeated-flash-budget.jsonl --arm D --trials 3 --max-calls 1500 --check-examples --case correction-02 --case forget-02 --case constraint-02 --case tool-02 --output eval-results/repeated-flash
+python -m evals.context.deepseek_pilot --live --budget-cny 8 --budget-ledger eval-results/repeated-flash-budget.jsonl --arm D --max-calls 350 --case correction-03 --output eval-results/long96-flash
+```
 
 ## Policy rollback
 
