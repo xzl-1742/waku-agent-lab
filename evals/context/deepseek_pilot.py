@@ -95,7 +95,8 @@ def run(args):
     before = balance(key)
     if Decimal(before) < Decimal(args.budget_cny):
         raise PilotStopped("Requested allowance exceeds the available balance")
-    budget = Budget(args.budget_cny, args.max_calls, getattr(args, "budget_ledger", None))
+    budget = Budget(args.budget_cny, args.max_calls, getattr(args, "budget_ledger", None),
+                    allow_increase=getattr(args, "increase_budget", False))
     # live.execute disables dotenv before calling this lazy factory.
     close = []
     def make_client(settings):
@@ -106,7 +107,7 @@ def run(args):
     selected = args.case_ids or [c["id"] for c in load_cases() if c["split"] == "development" and c["turns"] == 8]
     settings = SimpleNamespace(live=True, exploratory=True, provider="deepseek", model=MODEL,
         small_model=MODEL, judge_model=MODEL, calibration=Path(__file__).with_name("calibration.example.json"),
-        output=args.output, split="development", trials=1, max_calls=args.max_calls, case_ids=selected,
+        output=args.output, split="development", trials=getattr(args, "trials", 1), max_calls=args.max_calls, case_ids=selected,
         check_examples=getattr(args, "check_examples", False), arms=getattr(args, "arms", None))
     report = None
     try:
@@ -148,6 +149,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--budget-cny", type=str, default="5")
+    parser.add_argument("--increase-budget", action="store_true", help="Append an explicitly approved allowance increase; retain prior spend")
+    parser.add_argument("--trials", type=int, choices=range(1, 6), default=1, help="Repetitions per selected scenario and arm")
     parser.add_argument("--max-calls", type=int, default=650)
     parser.add_argument("--budget-ledger", type=Path, default=Path("eval-results/deepseek-flash-budget.jsonl"),
                         help="Share this durable allowance across sequential batches")

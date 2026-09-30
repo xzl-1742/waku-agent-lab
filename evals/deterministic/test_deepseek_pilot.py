@@ -112,6 +112,30 @@ def test_campaign_rejects_concurrent_writer_and_increased_allowance(tmp_path):
         Budget("10", 10, path)
 
 
+def test_explicit_allowance_increase_keeps_spend_and_unknown_reservations(tmp_path):
+    import json
+
+    path = tmp_path / "budget.jsonl"
+    first = Budget("5", 10, path)
+    pending = first.reserve(MODEL, 8192)
+    measured = first.reserve(MODEL, 100)
+    first.settle(measured, SimpleNamespace(prompt_tokens=1000, completion_tokens=100))
+    before = first.upper
+    first.close()
+    original = path.read_bytes()
+    raised = Budget("8", 10, path, allow_increase=True)
+    assert raised.limit == 8 and raised.upper == before and raised.initial_upper == before
+    assert list(raised.pending) == [pending.id]
+    raised.close()
+    assert path.read_bytes().startswith(original)
+    assert json.loads(path.read_text().splitlines()[-1]) == {"kind": "allowance", "previous_cny": "5", "limit_cny": "8"}
+    restored = Budget("8", 10, path)
+    assert restored.upper == before and len(restored.pending) == 1
+    restored.close()
+    with pytest.raises(ValueError, match="allowance"):
+        Budget("5", 10, path, allow_increase=True)
+
+
 def test_corrupt_campaign_ledger_fails_closed(tmp_path):
     path = tmp_path / "budget.jsonl"
     budget = Budget("5", 10, path)

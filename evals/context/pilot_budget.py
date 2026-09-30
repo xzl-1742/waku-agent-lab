@@ -27,7 +27,7 @@ class Reservation:
 
 
 class Budget:
-    def __init__(self, limit, max_calls, ledger=None):
+    def __init__(self, limit, max_calls, ledger=None, *, allow_increase=False):
         self.limit = Decimal(str(limit))
         if not self.limit.is_finite() or self.limit <= 0 or type(max_calls) is not int or max_calls < 1:
             raise ValueError("Budget and call allowance must be positive")
@@ -58,10 +58,21 @@ class Budget:
                 header = {"schema_version": 1, "model": MODEL, "limit_cny": str(self.limit),
                           "pricing_checked_at": "2026-09-29", "input_peak": "2", "cached_peak": "0.04", "output_peak": "8"}
                 if lines:
-                    if json.loads(lines[0]) != header:
+                    recorded = json.loads(lines[0])
+                    requested = self.limit
+                    if {**recorded, "limit_cny": header["limit_cny"]} != header:
                         raise ValueError("Campaign allowance or pricing differs from its ledger")
+                    self.limit = Decimal(recorded["limit_cny"])
+                    if not self.limit.is_finite() or self.limit <= 0:
+                        raise ValueError("Invalid campaign allowance")
                     for line in lines[1:]:
                         self._apply(json.loads(line))
+                    if requested != self.limit:
+                        if not allow_increase or requested <= self.limit:
+                            raise ValueError("Campaign allowance differs; an increase must be explicit")
+                        change = {"kind": "allowance", "previous_cny": str(self.limit), "limit_cny": str(requested)}
+                        self._append(change)
+                        self._apply(change)
                 else:
                     self._append(header)
             except Exception:
@@ -76,6 +87,12 @@ class Budget:
             os.fsync(self.handle.fileno())
 
     def _apply(self, row):
+        if row["kind"] == "allowance":
+            new_limit = Decimal(row["limit_cny"])
+            if Decimal(row["previous_cny"]) != self.limit or not new_limit.is_finite() or new_limit <= self.limit:
+                raise ValueError("Invalid campaign allowance change")
+            self.limit = new_limit
+            return
         identity = row["id"]
         if row["kind"] == "reserve":
             if identity in self.pending or type(row["max_tokens"]) is not int or not 1 <= row["max_tokens"] <= 8192:
