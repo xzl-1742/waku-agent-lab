@@ -95,6 +95,17 @@ class Compactor:
             if batch:
                 summary = summarize()
             covered = selected[-1].last_id
+            # Reapply exact active corrections on every revision; a model must
+            # not silently drop an explicit replacement in favor of chatter.
+            pinned = [{"text": m["content"], "source_ids": [r["id"]]}
+                      for t in self.store.sources(session_id, active_turn=active_turn) if t.last_id <= covered
+                      for r, m in zip(t.rows, t.messages, strict=True) if r["source"] == "memory_correction"]
+            pinned_ids = {i for item in pinned for i in item["source_ids"]}
+            if pinned:
+                for field in FIELDS:
+                    summary[field] = [item for item in summary[field] if not pinned_ids.intersection(item["source_ids"])]
+                summary["constraints"] = pinned + summary["constraints"]
+                validate_summary(summary, allowed)
             retained = self.store.conn.execute(
                 "SELECT min(id) FROM session_messages WHERE session_id=? AND id>?", (session_id, covered),
             ).fetchone()[0]
@@ -104,6 +115,7 @@ class Compactor:
             checkpoint = self.store.publish(session_id, previous, covered, retained, summary,
                                             {"source_sha256": self.store.digest(selected), "calls": calls,
                                              "memory_generation": generation,
+                                             "active_turn": active_turn,
                                              "prompt_sha256": fingerprint(COMPACTION_PROMPT),
                                              "tool_output_policy": "saved-result-preview",
                                              "elapsed_ms": round((time.perf_counter() - started) * 1000, 3)})

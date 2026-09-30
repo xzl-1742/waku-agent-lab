@@ -173,7 +173,7 @@ def test_corrected_fact_reaches_main_request_after_compaction(tmp_path, restart)
         record.message("user", "What is 2 + 2?")
         record.message("assistant", "4")
     assert "checkpoint 1" in app.compact().reply
-    assert "350" not in app.checkpoints.latest("default")["summary_json"]
+    assert "350" in app.checkpoints.latest("default")["summary_json"]
     if restart:
         app.conn.close()
         app = make_waku(tmp_path, client=client, **settings)
@@ -188,7 +188,7 @@ def test_corrected_fact_reaches_main_request_after_compaction(tmp_path, restart)
     app.respond("What is the corrected budget?")
     # Inspect evidence sent to the model, not a scripted correct answer.
     final = client.requests[-1]
-    assert "Budget is 350 units" in final["system"]
+    assert "Budget is 350 units" in final["system"].split("Relevant memory:\n")[1].split("Task checkpoint")[0]
     assert "900" not in json.dumps(final)
 
 

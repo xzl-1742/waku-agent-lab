@@ -52,6 +52,18 @@ class CheckpointStore:
         self.records = records
         self.conn = records.conn
 
+    def corrections(self, turn_id, session_id):
+        policy = getattr(self.records, "lifecycle", None)
+        if not policy:
+            return []
+        return self.conn.execute(
+            "SELECT f.id,f.content FROM facts f JOIN memory_evidence e ON e.memory_id=f.id "
+            "WHERE e.kind='fact' AND e.source_kind='correction_turn' AND e.source_id=? "
+            "AND f.validity='active' AND f.source='correction' "
+            "AND (f.scope='global' OR (f.scope='session' AND f.scope_id=?) "
+            "OR (f.scope='project' AND f.scope_id=?)) ORDER BY f.id",
+            (turn_id, session_id, policy.settings.project_id)).fetchall()
+
     def latest(self, session_id, include_invalid=False):
         row = self.conn.execute(
             "SELECT * FROM session_checkpoints WHERE session_id=? ORDER BY revision DESC LIMIT 1",
@@ -92,7 +104,15 @@ class CheckpointStore:
                 raise TurnStopped("An earlier turn ended before its final response was recorded. "
                                   "Reconcile that turn before continuing; no action was repeated.")
             policy = getattr(self.records, "lifecycle", None)
-            if policy and not policy.eligible_turn(turn_id):
+            corrections = self.corrections(turn_id, session_id)
+            if corrections:
+                # This projection is supported by the correction receipt and
+                # its active replacement, never by the quarantined dialogue.
+                text = "Current corrected memory:\n" + "\n".join(f"Fact #{r['id']}: {r['content']}" for r in corrections)
+                projected = {**dict(group[-1]), "role": "assistant", "content_json": encode(text), "source": "memory_correction"}
+                result.append(SourceTurn(turn_id, [projected], [{"role": "assistant", "content": text}]))
+                continue
+            if group[0]["source"] == "memory_correction" or (policy and not policy.eligible_turn(turn_id)):
                 continue
             # Match each result occurrence, not just call_id: providers may reuse
             # an identifier on a later iteration in the same turn.
@@ -159,20 +179,14 @@ class CheckpointStore:
                 raise TurnStopped("Checkpoint changed during compaction; the newer revision was kept.")
             revision = current["revision"] if current else 0
             if metadata.get("source_sha256"):
-                sources = self.conn.execute(
-                    "SELECT id,role,content_json,turn_id FROM session_messages WHERE session_id=? AND id>? AND id<=? ORDER BY id",
-                    (session_id, previous["covered_through"] if previous else 0, covered),
-                ).fetchall()
-                policy = getattr(self.records, "lifecycle", None)
-                snapshots = [{k: r[k] for k in ("id", "role", "content_json")} for r in sources
-                             if not policy or policy.eligible_turn(r["turn_id"])]
-                if fingerprint(snapshots) != metadata["source_sha256"]:
+                sources = [t for t in self.sources(session_id, previous["covered_through"] if previous else 0,
+                                                  metadata.get("active_turn"))
+                           if t.last_id <= covered]
+                if self.digest(sources) != metadata["source_sha256"]:
                     raise TurnStopped("Source messages changed during compaction; no checkpoint was published.")
             rows = self.conn.execute(
                 "SELECT id,turn_id FROM session_messages WHERE session_id=? AND id<=? ORDER BY id", (session_id, covered),
             ).fetchall()
-            policy = getattr(self.records, "lifecycle", None)
-            validate_summary(summary, {r["id"] for r in rows if not policy or policy.eligible_turn(r["turn_id"])})
             if covered <= (previous["covered_through"] if previous else 0) or not rows or rows[-1]["id"] != covered:
                 raise ValueError("Checkpoint must advance to a real source boundary")
             if self.conn.execute(
@@ -181,6 +195,8 @@ class CheckpointStore:
                 (session_id, covered, session_id, covered),
             ).fetchone():
                 raise ValueError("Checkpoint boundary splits a turn")
+            eligible = [t for t in self.sources(session_id, active_turn=metadata.get("active_turn")) if t.last_id <= covered]
+            validate_summary(summary, {r["id"] for t in eligible for r in t.rows})
             actual_retained = self.conn.execute(
                 "SELECT min(id) FROM session_messages WHERE session_id=? AND id>?", (session_id, covered),
             ).fetchone()[0]

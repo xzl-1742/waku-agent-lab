@@ -6,6 +6,7 @@ import hashlib
 import re
 import unicodedata
 from contextlib import contextmanager
+from uuid import uuid4
 
 from waku.memory.locking import serialized
 from waku.runtime.context import TurnStopped, encode
@@ -138,8 +139,18 @@ class Lifecycle:
                 if normalize(row[column]) == normalize(other["content"]):
                     self.conn.execute("UPDATE facts SET validity='suppressed' WHERE id=?", (other["id"],))
             if content is not None:
-                self.add(subject or row["subject"], content, "correction", scope=(row["scope"], row["scope_id"]),
-                         supersedes=row["id"], sources=[("memory", row["id"])])
+                replacement = self.add(subject or row["subject"], content, "correction", scope=(row["scope"], row["scope_id"]),
+                                       supersedes=row["id"], sources=[("memory", row["id"])])
+                # The old exchange remains quarantined. Its replacement has a
+                # separate durable link so checkpoints can project only current values.
+                turn_id = self.turn_id
+                if not turn_id:
+                    turn_id = "memory-" + uuid4().hex
+                    self.conn.execute(
+                        "INSERT INTO session_messages(session_id,turn_id,position,role,content_json,source) "
+                        "VALUES (?,?,0,'assistant',?,'memory_correction')",
+                        (self.session_id, turn_id, encode("Memory correction saved.")))
+                self.evidence("fact", replacement, [("correction_turn", turn_id)])
         try:
             self.after_change()
         except Exception as exc:

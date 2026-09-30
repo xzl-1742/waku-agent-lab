@@ -196,6 +196,7 @@ class Waku:
                 self.memory.export_markdown()   # keep MEMORY.md in sync
 
         self.tracer.end_turn(result.reply, result.iterations)
+        policy.turn_id = None
         return result
 
     def _run_full_turn(self, user_message: str, notify, stream: bool) -> LoopResult:
